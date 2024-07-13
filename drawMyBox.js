@@ -12,10 +12,12 @@ var plantData = {  // This will be retrieved by a call to the back-end
         "name": "Thickener 1", 
         "x": 50, "y": 75, "w": 100, "h": 50,
         "input_stream_ids": [
-            {"stream_id": "S0001", "landingSite": "left-0"}],
+            {"stream_id": "S0001", "landingSite": "left-0.2"},
+            {"stream_id": "S0005", "landingSite": "top"}
+        ],
         "output_streams": [
-            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom-0"}, 
-            {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right-0"}]
+            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom-0.7"}, 
+            {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right"}]
       },
       { 
         "id": "u0002", 
@@ -24,8 +26,8 @@ var plantData = {  // This will be retrieved by a call to the back-end
         "input_stream_ids": [
             {"stream_id": "S0002", "landingSite": "left-0"}],
         "output_streams": [
-            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right-0"},
-            {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom-0" }]
+            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right"},
+            {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom" }]
       },
       // ... more unit_operations
     ]
@@ -37,18 +39,19 @@ var plantData = {  // This will be retrieved by a call to the back-end
             if (stream.stream_id.toLowerCase() === streamId.toLowerCase()) {
                 let landingSide = stream.landingSite.split("-")[0];
                 if (landingSide === "left") {
-                    return {x: unit.x, y: unit.y + unit.h/2};
+                    return {x: unit.x, y: unit.y + unit.h/2, landingSide: landingSide};
                 } else if (landingSide === "right") {
-                    return {x: unit.x + unit.w, y: unit.y + unit.h/2};
+                    return {x: unit.x + unit.w, y: unit.y + unit.h/2, landingSide: landingSide};
                 } else if (landingSide === "top") {
-                    return {x: unit.x + unit.w/2, y: unit.y};
-                } else { // if (landingSide === "bottom") {
-                    return {x: unit.x + unit.w/2, y: unit.y + unit.h};
+                    return {x: unit.x + unit.w/2, y: unit.y, landingSide: landingSide};
+                } else { 
+                    landingSide = "bottom"
+                    return {x: unit.x + unit.w/2, y: unit.y + unit.h, landingSide: landingSide};
                 }
             }
         }
     }
-    return {x: null, y: null};
+    return {x: null, y: null, landingSide: null};
 }
 
 /*
@@ -62,6 +65,19 @@ function calculateLineEndsToDischargeStream(data, idx) {
 
     let dischargeAttachment = data.output_streams[idx]?.attachmentSite;
     let dischargeAttachSide = dischargeAttachment?.split("-")[0];
+    let sideFraction = 0.5;
+    if (dischargeAttachment?.split("-").length > 1) {
+        sideFraction = dischargeAttachment?.split("-")[1];
+    }
+     
+    // Next: Find the attachment site to receiving unitOp
+    let myStreamId = data.output_streams[idx].stream_id;
+    let landingSite = findLandingXY(myStreamId, plantData);
+    lineEndX = landingSite.x;
+    lineEndY = landingSite.y;
+    let landingSide = landingSite.landingSide;
+
+
     if (dischargeAttachSide === "bottom") {
         lineStartX = data.x + data.w / 2;
         lineStartY = data.y + data.h;  
@@ -73,19 +89,15 @@ function calculateLineEndsToDischargeStream(data, idx) {
     } else if (dischargeAttachSide === "left"){
         lineStartX = data.x;
         lineStartY = data.y + data.h / 2; 
-    } else { // DEFAULT to if (originAttachment.split("-")(0) === "right") {
+    } else if (dischargeAttachSide === "right") {
         lineStartX = data.x + data.w;
         lineStartY = data.y + data.h / 2; 
         // if (originAttachment.split("-")(0) === "1") then add that to y-position
     }
     
-    // Next: Find the attachment site to receiving unitOp
-    let myStreamId = data.output_streams[idx].stream_id;
-    let landingSite = findLandingXY(myStreamId, plantData);
-    lineEndX = landingSite.x;
-    lineEndY = landingSite.y;
-    if (lineEndX === null || lineEndY ===null) {  // Go fixed length in direction according to discharge side
-        console.log("Dangling Stream");
+    if (lineEndX === null || lineEndY ===null) {  
+        console.log("Need to handle dangling stream");
+        // Go fixed length in direction according to discharge side
         if (dischargeAttachSide === "right") {
             lineEndX = lineStartX + defaultLength;
             lineEndY = lineStartY;
@@ -99,11 +111,9 @@ function calculateLineEndsToDischargeStream(data, idx) {
             lineEndX = lineStartX - defaultLength;
             lineEndY = lineStartY;
         }
-    } else {
-        console.log("End points already calculated.")
     }
 
-    return { lineStartX, lineStartY, lineEndX, lineEndY };
+    return { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide };
 }
 
 var draw = SVG().addTo('#drawing').size('100%', '100%');
@@ -230,20 +240,78 @@ function deleteLineAndArrows(group) {
 
 function drawLineAndArrow(group, idx) {
     // Calculate start positions for line inside this function
-    const { lineStartX, lineStartY, lineEndX, lineEndY } = calculateLineEndsToDischargeStream(group.data, idx);
+    var { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide } = calculateLineEndsToDischargeStream(group.data, idx);
+
+    // Create a new polyline with 5 nodes using the SVG.js methods
+    //var fiveNodeLine = [[lineStartX, lineStartY], [midPointX, lineStartY], [midPointX, midPointY], [midPointX, lineEndY], [lineEndX, lineEndY]]
+    let polyCoordinates = [[lineStartX, lineStartY]]
+    let extremeStartY = lineStartY;
+    let insertIndex = 1;
+    if (dischargeAttachSide === "bottom") {
+        // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
+        extremeStartY += defaultLength;
+        var newPoint = [lineStartX, extremeStartY];
+        polyCoordinates = polyCoordinates.concat([newPoint]);
+        insertIndex += 1;
+        //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
+    } else if (dischargeAttachSide === "top") {
+        extremeStartY -= defaultLength;
+        var newPoint = [lineStartX, extremeStartY];
+        polyCoordinates = polyCoordinates.concat([newPoint]);
+        insertIndex += 1;
+    }
+    
+    let extremeEndY = lineEndY;
+    if (landingSide === "bottom") {
+        // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
+        extremeEndY += defaultLength;
+        var newPoint = [lineEndX, extremeEndY];
+        polyCoordinates = polyCoordinates.concat([newPoint])
+        //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
+    } else if (landingSide === "top") {
+        extremeEndY -= defaultLength;
+        var newPoint = [lineEndX, extremeEndY];
+        polyCoordinates = polyCoordinates.concat([newPoint])
+    }
 
     // Calculate midpoint for orthogonal arrangement
-    const midPointX = (lineStartX + lineEndX) / 2; // or some other logic to determine the bend point
-    const midPointY = (lineStartY + lineEndY) / 2; // or some other logic to determine the bend point
+    midPointX = (lineStartX + lineEndX) / 2; // or some other logic to determine the bend point
+    midPointY = (extremeStartY + extremeEndY) / 2; // or some other logic to determine the bend point
 
-    // Create a new polyline with two segments using the SVG.js methods
-    var newLine = group.polyline([[lineStartX, lineStartY], [midPointX, lineStartY], [midPointX, midPointY], [midPointX, lineEndY], [lineEndX, lineEndY]])
+    polyCoordinates = polyCoordinates.slice(0, insertIndex).concat([[midPointX, extremeStartY], [midPointX, midPointY], [midPointX, extremeEndY]], polyCoordinates.slice(insertIndex));
+    
+    // insert final point
+    var endPoint = [lineEndX, lineEndY];
+    polyCoordinates = polyCoordinates.concat([endPoint]);
+
+    var newLine = group.polyline(polyCoordinates)
         .fill('none')
         .stroke({ color: '#000', width: 2 });
 
-    var newArrow = group.polygon(`0,0 0,${arrowHeight} ${arrowWidth},0 0,-${arrowHeight}`)
-        .move(lineEndX - arrowWidth, lineEndY - arrowHeight)
-        .fill('#000');
+    let landedSide = landingSide;
+    if (landingSide === null) { 
+        if (dischargeAttachSide === "right") landedSide = "left";
+        if (dischargeAttachSide === "left") landedSide = "right";
+        if (dischargeAttachSide === "top") landedSide = "bottom";
+        if (dischargeAttachSide === "bottom") landedSide = "top";
+    }
+
+    var newArrow;
+    if (landedSide === "right") {
+        newArrow = group.polygon(`0,0 ${arrowWidth},${arrowHeight} ${arrowWidth},-${arrowHeight}`)
+        newArrow.move(lineEndX, lineEndY - arrowHeight)
+    } else if (landedSide === "bottom") {
+        newArrow = group.polygon(`0,0 ${arrowHeight},0 0,-${arrowWidth} -${arrowHeight},0`)
+        newArrow.move(lineEndX - arrowHeight, lineEndY)
+    } else if (landedSide === "top") {
+        newArrow = group.polygon(`0,0 -${arrowHeight},0 0,${arrowWidth} ${arrowHeight},0`)
+        newArrow.move(lineEndX- arrowHeight, lineEndY - arrowWidth)
+    } else { // if (landedSide === "left") {
+        newArrow = group.polygon(`0,0 0,${arrowHeight} ${arrowWidth},0 0,-${arrowHeight}`)
+        newArrow.move(lineEndX - arrowWidth, lineEndY - arrowHeight)
+    }
+    
+    newArrow.fill('#000');
 
     // If you need to reference these later, you can assign them to properties on the group
     group.referencedLines.push(newLine);
