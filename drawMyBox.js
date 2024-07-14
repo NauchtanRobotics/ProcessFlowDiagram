@@ -1,3 +1,5 @@
+import plantData from '.data.js';
+
 const arrowWidth = 13;
 const arrowHeight = 5;
 const defaultLength = 50;
@@ -19,9 +21,9 @@ var plantData = {  // This will be retrieved by a call to the back-end
             {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom-0.7"}, 
             {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right"}]
       },
-      { 
-        "id": "u0002", 
-        "name": "Thickener 2", 
+      {
+        "id": "u0002",
+        "name": "Thickener 2",
         "x": 350, "y": 75, "w": 100, "h": 50,
         "input_stream_ids": [
             {"stream_id": "S0002", "landingSite": "left-0"}],
