@@ -88,24 +88,22 @@ function startDrag(event, group) {
 
     // Function to end dragging (mouseup event)
     function endDrag() {
-        // Need to update new position for unit.x, y: unit.y in plantData
-        
         // Remove the event listeners
         window.removeEventListener('mousemove', drag);
         window.removeEventListener('mouseup', endDrag);
         console.log("Commencing dragging.");
-        
+    
         // Reconnect to downstream units
         group.data.output_streams.forEach(function(stream, idx) {
             drawLineAndArrow(group, idx);
         });
-        
+    
         // Reconnect to upstream units
         group.data.input_stream_ids.forEach(function(stream, idx) {
             var stream_id = stream.stream_id;
             console.log("Searching for unit assoc with stream ID: " + stream_id);
             var unitId = findInputUnits(stream.stream_id, plantData);
-            if (unitId) { 
+            if (unitId) {
                 console.log("Found unit = " + unitId);
                 var groupElement = allGroups.find(group => group.attr('data-id') === unitId);
                 deleteLineAndArrows(groupElement);
@@ -114,18 +112,13 @@ function startDrag(event, group) {
                     console.log("idx " + idx + ": attempting to redraw stream_id " + stream.stream_id);
                     drawLineAndArrow(groupElement, idx);
                 });
-            } else { 
+            } else {
                 console.log("Unit id was null");
             }
         });
-        
-        // Update the JSON object with the new position
-        var id = group.attr('data-id');
-        var groupData = plantData.unit_operations.find(g => g.id === id);
-        if (groupData) {
-            groupData.x = group.x();
-            groupData.y = group.y();
-            // Persist the new position to the JSON file
+    
+        // Write updated plantData back to DB/JSON object including latest positions for the dragged group
+        if (plantData) {
             savePositionsToFile(plantData);
         }
     }
