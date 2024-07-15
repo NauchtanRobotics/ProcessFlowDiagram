@@ -1,19 +1,40 @@
 const arrowWidth = 13;
 const arrowHeight = 5;
-const defaultLength = 100;
+const defaultLength = 50;
+
+var allGroups = [];  // This should be your array or object containing all group objects
 
 // Assume we have an initial JSON object with group positions and IDs
-var groupsData = {  // This will be retrieved by a call to the back-end
-    "groups": [
-      { "id": "group1", "name": "Thickener 1", "x": 50, "y": 75, "w": 100, "h": 50, "destGroup": "group2" },
-      { "id": "group2", "name": "Thickener 2", "x": 350, "y": 75, "w": 100, "h": 50, "destGroup": null }
-      // ... more groups
+var plantData = {  // This will be retrieved by a call to the back-end
+    "unit_operations": [
+      { 
+        "id": "u0001", 
+        "name": "Thickener 1", 
+        "x": 50, "y": 75, "w": 100, "h": 50,
+        "input_stream_ids": [
+            {"stream_id": "S0001", "landingSite": "left-0.2"},
+            {"stream_id": "S0005", "landingSite": "top"}
+        ],
+        "output_streams": [
+            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom-0.7"}, 
+            {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right"}]
+      },
+      { 
+        "id": "u0002", 
+        "name": "Thickener 2", 
+        "x": 350, "y": 75, "w": 100, "h": 50,
+        "input_stream_ids": [
+            {"stream_id": "S0002", "landingSite": "left-0"}],
+        "output_streams": [
+            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right"},
+            {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom" }]
+      },
+      // ... more unit_operations
     ]
   };
 
 var draw = SVG().addTo('#drawing').size('100%', '100%');
-  
-// Function to create a draggable group with a rectangle, text, line, and arrow
+
 function createDraggableGroup(data, fillColor) {
     var group = draw.group().attr({ 'data-id': data.id });
     
@@ -28,7 +49,12 @@ function createDraggableGroup(data, fillColor) {
     group.text.move(data.x + (data.w - bbox.width) / 2, data.y + (data.h - bbox.height) / 2);
 
     group.data = data
-    drawLineAndArrow(group)
+    group.referencedLines = [];
+    group.referencedArrows = [];
+    
+    data.output_streams.forEach(function(stream, idx) {
+        drawLineAndArrow(group, idx);
+    });
 
     // Add event listeners for dragging
     group.on('mousedown', function(event) {
@@ -40,8 +66,7 @@ function createDraggableGroup(data, fillColor) {
 
 // Function to start dragging
 function startDrag(event, group) {
-    
-    deleteLineAndArrow(group)
+    deleteLineAndArrows(group);
 
     // Get the initial mouse position
     var startX = event.clientX;
@@ -66,17 +91,35 @@ function startDrag(event, group) {
         // Remove the event listeners
         window.removeEventListener('mousemove', drag);
         window.removeEventListener('mouseup', endDrag);
-
-        drawLineAndArrow(group)
-
-        // Update the JSON object with the new position
-        var id = group.attr('data-id');
-        var groupData = groupsData.groups.find(g => g.id === id);
-        if (groupData) {
-            groupData.x = group.x();
-            groupData.y = group.y();
-            // Persist the new position to the JSON file
-            savePositionsToFile(groupsData);
+        console.log("Commencing dragging.");
+    
+        // Reconnect to downstream units
+        group.data.output_streams.forEach(function(stream, idx) {
+            drawLineAndArrow(group, idx);
+        });
+    
+        // Reconnect to upstream units
+        group.data.input_stream_ids.forEach(function(stream, idx) {
+            var stream_id = stream.stream_id;
+            console.log("Searching for unit assoc with stream ID: " + stream_id);
+            var unitId = findInputUnits(stream.stream_id, plantData);
+            if (unitId) {
+                console.log("Found unit = " + unitId);
+                var groupElement = allGroups.find(group => group.attr('data-id') === unitId);
+                deleteLineAndArrows(groupElement);
+                groupElement.data.output_streams.forEach(function(stream, idx) {
+                    console.log(groupElement);
+                    console.log("idx " + idx + ": attempting to redraw stream_id " + stream.stream_id);
+                    drawLineAndArrow(groupElement, idx);
+                });
+            } else {
+                console.log("Unit id was null");
+            }
+        });
+    
+        // Write updated plantData back to DB/JSON object including latest positions for the dragged group
+        if (plantData) {
+            savePositionsToFile(plantData);
         }
     }
     
@@ -85,54 +128,186 @@ function startDrag(event, group) {
     window.addEventListener('mouseup', endDrag);
 }
 
-function deleteLineAndArrow(group) {
-    group.referencedLine.remove();
-    group.referencedArrow.remove();
+function findInputUnits(streamId, plantData) {
+    for (let unit of plantData.unit_operations) {
+        for (let stream of unit.output_streams) {
+            if (stream.stream_id.toLowerCase() === streamId.toLowerCase()) {
+                return unit.id;
+            }
+        }
+    }
+    return null;
 }
 
-function drawLineAndArrow(group) {
-    // Calculate start positions for line inside this function
-    const { lineStartX, lineStartY, lineEndX, lineEndY } = calculateLineEnds(group.data);
-
-    // Calculate midpoint for orthogonal arrangement
-    const midPointX = (lineStartX + lineEndX) / 2; // or some other logic to determine the bend point
-    const midPointY = (lineStartY + lineEndY) / 2; // or some other logic to determine the bend point
-
-    // Create a new polyline with two segments using the SVG.js methods
-    var newLine = group.polyline([[lineStartX, lineStartY], [midPointX, lineStartY], [midPointX, midPointY], [midPointX, lineEndY], [lineEndX, lineEndY]])
-        .fill('none')
-        .stroke({ color: '#000', width: 2 });
-
-    var newArrow = group.polygon(`0,0 0,${arrowHeight} ${arrowWidth},0 0,-${arrowHeight}`)
-        .move(lineEndX - arrowWidth, lineEndY - arrowHeight)
-        .fill('#000');
-
-    // If you need to reference these later, you can assign them to properties on the group
-    group.referencedLine = newLine;
-    group.referencedArrow = newArrow;
+  function findLandingXY(streamId, plantData) {
+    for (let unit of plantData.unit_operations) {  // But plantData may not have been updated!!
+        for (let stream of unit.input_stream_ids) {
+            if (stream.stream_id.toLowerCase() === streamId.toLowerCase()) {
+                let landingSide = stream.landingSite.split("-")[0];
+                if (landingSide === "left") {
+                    return {x: unit.x, y: unit.y + unit.h/2, landingSide: landingSide};
+                } else if (landingSide === "right") {
+                    return {x: unit.x + unit.w, y: unit.y + unit.h/2, landingSide: landingSide};
+                } else if (landingSide === "top") {
+                    return {x: unit.x + unit.w/2, y: unit.y, landingSide: landingSide};
+                } else { 
+                    landingSide = "bottom"
+                    return {x: unit.x + unit.w/2, y: unit.y + unit.h, landingSide: landingSide};
+                }
+            }
+        }
+    }
+    return {x: null, y: null, landingSide: null};
 }
 
-function calculateLineEnds(data) {
-    let lineStartX = data.x + data.w;  // assumes connecting to right-hand side
-    let lineStartY = data.y + data.h / 2;  // assumes connecting a mid-point
+/*
+Calculate start and end of line that connects this stream to the src and dst units.
+*/
+function calculateLineEndsToDischargeStream(data, idx) {
+    let lineStartX;
+    let lineStartY;
     let lineEndX;
     let lineEndY;
 
-    if (data.destGroup === null) {
-        lineEndX = lineStartX + defaultLength;
-        lineEndY = lineStartY;
-    } else {
-        const destGroupData = groupsData.groups.find(g => g.id === data.destGroup);
-        if (destGroupData) {
-            lineEndX = destGroupData.x;  // assumes connecting to left-hand side
-            lineEndY = destGroupData.y + destGroupData.h/2; // assumes connecting to mid-point
-        } else {
-            lineEndX = lineStartX + defaultLength;  // assumes no terminal connection
-            lineEndY = lineStartY;  // assumes horizontal line.
+    let dischargeAttachment = data.output_streams[idx]?.attachmentSite;
+    let dischargeAttachSide = dischargeAttachment?.split("-")[0];
+    let sideFraction = 0.5;
+    if (dischargeAttachment?.split("-").length > 1) {
+        sideFraction = dischargeAttachment?.split("-")[1];
+    }
+     
+    // Next: Find the attachment site to receiving unitOp
+    let myStreamId = data.output_streams[idx].stream_id;
+    let landingSite = findLandingXY(myStreamId, plantData);
+    lineEndX = landingSite.x;
+    lineEndY = landingSite.y;
+    let landingSide = landingSite.landingSide;
+
+
+    if (dischargeAttachSide === "bottom") {
+        lineStartX = data.x + data.w / 2;
+        lineStartY = data.y + data.h;  
+        // if (originAttachment.split("-")(0) === "1") then add that to x-position
+    } else if (dischargeAttachSide === "top") {  // must be originating at top
+        lineStartX = data.x + data.w / 2;
+        lineStartY = data.y;  
+        // if (originAttachment.split("-")(0) === "1") then add that to x-position
+    } else if (dischargeAttachSide === "left"){
+        lineStartX = data.x;
+        lineStartY = data.y + data.h / 2; 
+    } else if (dischargeAttachSide === "right") {
+        lineStartX = data.x + data.w;
+        lineStartY = data.y + data.h / 2; 
+        // if (originAttachment.split("-")(0) === "1") then add that to y-position
+    }
+    
+    if (lineEndX === null || lineEndY ===null) {  
+        console.log("Need to handle dangling stream");
+        // Go fixed length in direction according to discharge side
+        if (dischargeAttachSide === "right") {
+            lineEndX = lineStartX + defaultLength;
+            lineEndY = lineStartY;
+        } else if (dischargeAttachSide === "bottom") {
+            lineEndX = lineStartX;
+            lineEndY = lineStartY + defaultLength;
+        } else if (dischargeAttachSide === "top") {
+            lineEndX = lineStartX;
+            lineEndY = lineStartY - defaultLength;
+        } else {  // must be on the left
+            lineEndX = lineStartX - defaultLength;
+            lineEndY = lineStartY;
         }
     }
 
-    return { lineStartX, lineStartY, lineEndX, lineEndY };
+    return { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide };
+}
+
+function deleteLineAndArrows(group) {
+    console.log("Deleting lines and arrow for unit " + group.data.id);
+    group.referencedLines.forEach(line => line.remove());
+    group.referencedArrows.forEach(arrow => arrow.remove());
+    group.referencedLines = [];
+    group.referencedArrows = [];
+}
+
+function drawLineAndArrow(group, idx) {
+    // Calculate start positions for line inside this function
+    var { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide } = calculateLineEndsToDischargeStream(group.data, idx);
+
+    // Create a new polyline with 5 nodes using the SVG.js methods
+    //var fiveNodeLine = [[lineStartX, lineStartY], [midPointX, lineStartY], [midPointX, midPointY], [midPointX, lineEndY], [lineEndX, lineEndY]]
+    let polyCoordinates = [[lineStartX, lineStartY]]
+    let extremeStartY = lineStartY;
+    let insertIndex = 1;
+    if (dischargeAttachSide === "bottom") {
+        // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
+        extremeStartY += defaultLength;
+        var newPoint = [lineStartX, extremeStartY];
+        polyCoordinates = polyCoordinates.concat([newPoint]);
+        insertIndex += 1;
+        //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
+    } else if (dischargeAttachSide === "top") {
+        extremeStartY -= defaultLength;
+        var newPoint = [lineStartX, extremeStartY];
+        polyCoordinates = polyCoordinates.concat([newPoint]);
+        insertIndex += 1;
+    }
+    
+    let extremeEndY = lineEndY;
+    if (landingSide === "bottom") {
+        // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
+        extremeEndY += defaultLength;
+        var newPoint = [lineEndX, extremeEndY];
+        polyCoordinates = polyCoordinates.concat([newPoint])
+        //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
+    } else if (landingSide === "top") {
+        extremeEndY -= defaultLength;
+        var newPoint = [lineEndX, extremeEndY];
+        polyCoordinates = polyCoordinates.concat([newPoint])
+    }
+
+    // Calculate midpoint for orthogonal arrangement
+    midPointX = (lineStartX + lineEndX) / 2; // or some other logic to determine the bend point
+    midPointY = (extremeStartY + extremeEndY) / 2; // or some other logic to determine the bend point
+
+    polyCoordinates = polyCoordinates.slice(0, insertIndex).concat([[midPointX, extremeStartY], [midPointX, midPointY], [midPointX, extremeEndY]], polyCoordinates.slice(insertIndex));
+    
+    // insert final point
+    var endPoint = [lineEndX, lineEndY];
+    polyCoordinates = polyCoordinates.concat([endPoint]);
+
+    var newLine = group.polyline(polyCoordinates)
+        .fill('none')
+        .stroke({ color: '#000', width: 2 });
+
+    let landedSide = landingSide;
+    if (landingSide === null) { 
+        if (dischargeAttachSide === "right") landedSide = "left";
+        if (dischargeAttachSide === "left") landedSide = "right";
+        if (dischargeAttachSide === "top") landedSide = "bottom";
+        if (dischargeAttachSide === "bottom") landedSide = "top";
+    }
+
+    var newArrow;
+    if (landedSide === "right") {
+        newArrow = group.polygon(`0,0 ${arrowWidth},${arrowHeight} ${arrowWidth},-${arrowHeight}`)
+        newArrow.move(lineEndX, lineEndY - arrowHeight)
+    } else if (landedSide === "bottom") {
+        newArrow = group.polygon(`0,0 ${arrowHeight},0 0,-${arrowWidth} -${arrowHeight},0`)
+        newArrow.move(lineEndX - arrowHeight, lineEndY)
+    } else if (landedSide === "top") {
+        newArrow = group.polygon(`0,0 -${arrowHeight},0 0,${arrowWidth} ${arrowHeight},0`)
+        newArrow.move(lineEndX- arrowHeight, lineEndY - arrowWidth)
+    } else { // if (landedSide === "left") {
+        newArrow = group.polygon(`0,0 0,${arrowHeight} ${arrowWidth},0 0,-${arrowHeight}`)
+        newArrow.move(lineEndX - arrowWidth, lineEndY - arrowHeight)
+    }
+    
+    newArrow.fill('#000');
+
+    // If you need to reference these later, you can assign them to properties on the group
+    group.referencedLines.push(newLine);
+    group.referencedArrows.push(newArrow);
 }
 
   // Function to save the updated positions to a file
@@ -145,7 +320,8 @@ function calculateLineEnds(data) {
       // For example, in Node.js, you might use fs.writeFileSync('path/to/file.json', jsonString);
   }
   
-  // Create groups from the JSON data
-  groupsData.groups.forEach(data => {
-      createDraggableGroup(data, '#000');
+  // Create unit_operations from the JSON data
+  plantData.unit_operations.forEach(data => {
+      var grp = createDraggableGroup(data, '#000');
+      allGroups.push(grp);
   });
