@@ -288,26 +288,50 @@ function drawLineAndArrow(group, idx) {
         if (dischargeAttachSide === "bottom") landedSide = "top";
     }
 
-    var newArrow;
-    if (landedSide === "right") {
-        newArrow = group.polygon(`0,0 ${arrowWidth},${arrowHeight} ${arrowWidth},-${arrowHeight}`)
-        newArrow.move(lineEndX, lineEndY - arrowHeight)
-    } else if (landedSide === "bottom") {
-        newArrow = group.polygon(`0,0 ${arrowHeight},0 0,-${arrowWidth} -${arrowHeight},0`)
-        newArrow.move(lineEndX - arrowHeight, lineEndY)
-    } else if (landedSide === "top") {
-        newArrow = group.polygon(`0,0 -${arrowHeight},0 0,${arrowWidth} ${arrowHeight},0`)
-        newArrow.move(lineEndX- arrowHeight, lineEndY - arrowWidth)
-    } else { // if (landedSide === "left") {
-        newArrow = group.polygon(`0,0 0,${arrowHeight} ${arrowWidth},0 0,-${arrowHeight}`)
-        newArrow.move(lineEndX - arrowWidth, lineEndY - arrowHeight)
-    }
+    const landedSide = determineLandedSide(landingSide, dischargeAttachSide);
+    var newArrow = drawArrow(group, landedSide, lineEndX, lineEndY)
     
     newArrow.fill('#000');
 
     // If you need to reference these later, you can assign them to properties on the group
     group.referencedLines.push(newLine);
     group.referencedArrows.push(newArrow);
+}
+
+function drawArrow(group, landedSide, lineEndX, lineEndY) {
+    let newArrow;
+    switch (landedSide) {
+        case "right":
+            newArrow = group.polygon(`0,0 ${arrowWidth},${arrowHeight} ${arrowWidth},-${arrowHeight}`);
+            newArrow.move(lineEndX, lineEndY - arrowHeight);
+            break;
+        case "bottom":
+            newArrow = group.polygon(`0,0 ${arrowHeight},0 0,-${arrowWidth} -${arrowHeight},0`);
+            newArrow.move(lineEndX - arrowHeight, lineEndY);
+            break;
+        case "top":
+            newArrow = group.polygon(`0,0 -${arrowHeight},0 0,${arrowWidth} ${arrowHeight},0`);
+            newArrow.move(lineEndX - arrowHeight, lineEndY - arrowWidth);
+            break;
+        default: // "left"
+            newArrow = group.polygon(`0,0 0,${arrowHeight} ${arrowWidth},0 0,-${arrowHeight}`);
+            newArrow.move(lineEndX - arrowWidth, lineEndY - arrowHeight);
+    }
+    newArrow.fill('#000');
+    return newArrow;
+}
+
+function determineLandedSide(landingSide, dischargeAttachSide) {
+    if (landingSide !== null) {
+        return landingSide;
+    }
+    switch (dischargeAttachSide) {
+        case "right": return "left";
+        case "left": return "right";
+        case "top": return "bottom";
+        case "bottom": return "top";
+        default: return null;
+    }
 }
 
   // Function to save the updated positions to a file
