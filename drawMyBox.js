@@ -66,9 +66,6 @@ function createDraggableGroup(data, fillColor) {
 
 // Function to start dragging
 function startDrag(event, group) {
-    // Delete all previously drawn circles
-    deleteAllCircles();
-
     deleteLineAndArrows(group);
 
     // Get the initial mouse position
@@ -257,6 +254,7 @@ function addToAllLines(guid, poly) {
     allLineSegments.push(newObj);
     return true;
 }
+
 // Function to calculate the orientation of the triplet (p, q, r)
 function orientor(p, q, r) {
     const val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
@@ -316,13 +314,13 @@ function orientor(p, q, r) {
         const segment1 = { p1: { x: proposedBridgeSection[i][0], y: proposedBridgeSection[i][1] }, p2: { x: proposedBridgeSection[i + 1][0], y: proposedBridgeSection[i + 1][1] } };
         for (let j = 0; j < allLineSegments.length; j++) {
             const lines = allLineSegments[j].data;
-            for (let k = 0; k < lines.length; k++) {
+            const guid = allLineSegments[j].id;
+            for (let k = 0; k < lines.length; k++) {        
                 const segment2 = { p1: lines[k].p1, p2: lines[k].p2 };
                 if (doIntersect(segment1.p1, segment1.p2, segment2.p1, segment2.p2)) {
                     const intersection = lineIntersection(segment1.p1, segment1.p2, segment2.p1, segment2.p2);
                     if (intersection) {
                         console.log(`Collision detected between proposed section segment and line ${allLineSegments[j].id} at (${intersection.x}, ${intersection.y})`);
-                        draw.circle(5).move(intersection.x - 2.5, intersection.y - 2.5).fill('white'); // Mark intersection point
                         return intersection;
                     }
                 }
@@ -330,18 +328,6 @@ function orientor(p, q, r) {
         }
     }
     return null;
-}
-
-function deleteAllCircles() {
-    // Use find to get all circles within the SVG container
-    draw.find('circle').each(circle => circle.remove());
-}
-
-function deleteLineByID(uniqueID) {
-    const lineToDelete = SVG.get(uniqueID);
-    if (lineToDelete) {
-        lineToDelete.remove();
-    }
 }
 
 function generateRandomString() {
@@ -370,6 +356,7 @@ function drawLineAndArrow(group, idx) {
     }
     
     let extremeEndY = lineEndY;
+    let newPoint1, newPoint2;
     if (landingSide === "bottom") {
         // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
         extremeEndY += defaultLength;
@@ -377,8 +364,8 @@ function drawLineAndArrow(group, idx) {
             extremeEndY = Math.max(extremeEndY, extremeStartY);
             extremeStartY = extremeEndY;
         }
-        var newPoint1 = [lineStartX, extremeStartY];
-        var newPoint2 = [lineEndX, extremeEndY];
+        newPoint1 = [lineStartX, extremeStartY];
+        newPoint2 = [lineEndX, extremeEndY];
         polyCoordinates = polyCoordinates.concat([newPoint1, newPoint2])
         //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
     } else if (landingSide === "top") {
@@ -387,27 +374,22 @@ function drawLineAndArrow(group, idx) {
             extremeEndY = Math.min(extremeEndY, extremeStartY);
             extremeStartY = extremeEndY;
         }
-        var newPoint1 = [lineStartX, extremeStartY];
-        var newPoint2 = [lineEndX, extremeEndY];
+        newPoint1 = [lineStartX, extremeStartY];
+        newPoint2 = [lineEndX, extremeEndY];
         polyCoordinates = polyCoordinates.concat([newPoint1, newPoint2])
     } 
 
     // Calculate midpoint for orthogonal arrangement
-    midPointX = (lineStartX + lineEndX) / 2;
+    let midPointX = (lineStartX + lineEndX) / 2;
     if (lineStartX < lineEndX) {
         midPointX -= 5; // or some other logic to determine the bend point
     } else {
         midPointX += 5; 
     }
-    midPointY = (extremeStartY + extremeEndY) / 2; // or some other logic to determine the bend point
-
-    var proposedBridgeSection = [[midPointX, extremeStartY],  [midPointX, extremeEndY]]; //[midPointX, midPointY],
-    // Check if proposed offers any clashes with existing line segments in allLines.
-    var result = checkForCollisionWithExistingLines(proposedBridgeSection);
-    if (result) { 
-        var radius = 5;
-        console.log("Revisit the bridge section with an arc around the point of intersection.");
-    }
+    //let midPointY = (extremeStartY + extremeEndY) / 2; // or some other logic to determine the bend point
+    var midPoint1 = [midPointX, extremeStartY];
+    var midPoint3 = [midPointX, extremeEndY];
+    var proposedBridgeSection = [midPoint1,  midPoint3]; // var midPoint2 = [midPointX, midPointY],
     polyCoordinates = polyCoordinates.slice(0, insertIndex).concat(proposedBridgeSection, polyCoordinates.slice(insertIndex));
     
     // insert final point
@@ -415,13 +397,36 @@ function drawLineAndArrow(group, idx) {
     polyCoordinates = polyCoordinates.concat([endPoint]);
 
     const uniqueID = generateRandomString();
-    var newLine = group.polyline(polyCoordinates)
-        .fill('none')
-        .stroke({ color: '#000', width: 2 })
-        .attr('id', uniqueID);
-    
-    addToAllLines(uniqueID, polyCoordinates);
+    addToAllLines(uniqueID, polyCoordinates);  // allLines is used when checking for collisions.
 
+    // Check if proposed offers any clashes with existing line segments in allLines.
+    let newLine;
+    var result = checkForCollisionWithExistingLines(proposedBridgeSection);
+    if (result) { 
+        let arcStartY, arcEndY;
+        if (extremeStartY < extremeEndY) {
+            arcStartY = result.y - 5;
+            arcEndY = result.y + 5;
+        } else {
+            arcStartY = result.y + 5;
+            arcEndY = result.y - 5;
+        }
+        var arcPoint1 = [midPoint1[0], arcStartY];
+        var arcPoint2 = [midPoint1[0], arcEndY];
+        var pathStr = `M${lineStartX} ${lineStartY}`;
+        if (newPoint1) {
+            pathStr = `${pathStr} L${newPoint1[0]} ${newPoint1[1]}`;
+        }
+        pathStr = `${pathStr} L${midPoint1[0]} ${midPoint1[1]} L${arcPoint1[0]} ${arcPoint1[1]} M${arcPoint2[0]} ${arcPoint2[1]} L${midPoint3[0]} ${midPoint3[1]}`
+        if (newPoint2) {
+            pathStr = `${pathStr} L${newPoint2[0]} ${newPoint2[1]}`;
+        }
+        pathStr = `${pathStr} L${lineEndX} ${lineEndY}`
+        newLine = group.path(pathStr).fill('none').stroke({ color: '#000', width: 2 });
+    } else {
+        newLine = group.polyline(polyCoordinates).fill('none').stroke({ color: '#000', width: 2 });
+    }
+    
     const landedSide = determineLandedSide(landingSide, dischargeAttachSide);
     var newArrow = drawArrow(group, landedSide, lineEndX, lineEndY)
     
