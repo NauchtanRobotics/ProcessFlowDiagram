@@ -229,22 +229,17 @@ function drawLineAndArrow(group, idx) {
     // Calculate start positions for line inside this function
     var { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide } = calculateLineEndsToDischargeStream(group.data, idx);
 
-    // Create a new polyline with 5 nodes using the SVG.js methods
-    //var fiveNodeLine = [[lineStartX, lineStartY], [midPointX, lineStartY], [midPointX, midPointY], [midPointX, lineEndY], [lineEndX, lineEndY]]
+    // Create a new polyline with at least 5 nodes using the SVG.js methods
     let polyCoordinates = [[lineStartX, lineStartY]]
     let extremeStartY = lineStartY;
     let insertIndex = 1;
     if (dischargeAttachSide === "bottom") {
         // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
         extremeStartY += defaultLength;
-        var newPoint = [lineStartX, extremeStartY];
-        polyCoordinates = polyCoordinates.concat([newPoint]);
         insertIndex += 1;
         //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
     } else if (dischargeAttachSide === "top") {
         extremeStartY -= defaultLength;
-        var newPoint = [lineStartX, extremeStartY];
-        polyCoordinates = polyCoordinates.concat([newPoint]);
         insertIndex += 1;
     }
     
@@ -252,14 +247,24 @@ function drawLineAndArrow(group, idx) {
     if (landingSide === "bottom") {
         // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
         extremeEndY += defaultLength;
-        var newPoint = [lineEndX, extremeEndY];
-        polyCoordinates = polyCoordinates.concat([newPoint])
+        if (dischargeAttachSide === "bottom") { // i.e. same side and landing
+            extremeEndY = Math.max(extremeEndY, extremeStartY);
+            extremeStartY = extremeEndY;
+        }
+        var newPoint1 = [lineStartX, extremeStartY];
+        var newPoint2 = [lineEndX, extremeEndY];
+        polyCoordinates = polyCoordinates.concat([newPoint1, newPoint2])
         //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
     } else if (landingSide === "top") {
         extremeEndY -= defaultLength;
-        var newPoint = [lineEndX, extremeEndY];
-        polyCoordinates = polyCoordinates.concat([newPoint])
-    }
+        if (dischargeAttachSide === "top") { // i.e. same side as landingSide
+            extremeEndY = Math.min(extremeEndY, extremeStartY);
+            extremeStartY = extremeEndY;
+        }
+        var newPoint1 = [lineStartX, extremeStartY];
+        var newPoint2 = [lineEndX, extremeEndY];
+        polyCoordinates = polyCoordinates.concat([newPoint1, newPoint2])
+    } 
 
     // Calculate midpoint for orthogonal arrangement
     midPointX = (lineStartX + lineEndX) / 2; // or some other logic to determine the bend point
