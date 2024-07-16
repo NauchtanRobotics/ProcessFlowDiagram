@@ -1,6 +1,6 @@
 const arrowWidth = 13;
 const arrowHeight = 5;
-const defaultLength = 50;
+const defaultLength = 25;
 
 var allGroups = [];  // This should be your array or object containing all group objects
 
