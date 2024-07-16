@@ -164,58 +164,53 @@ function findInputUnits(streamId, plantData) {
 Calculate start and end of line that connects this stream to the src and dst units.
 */
 function calculateLineEndsToDischargeStream(data, idx) {
-    let lineStartX;
-    let lineStartY;
-    let lineEndX;
-    let lineEndY;
-
+    let lineStartX, lineStartY, lineEndX, lineEndY, landingSide;
     let dischargeAttachment = data.output_streams[idx]?.attachmentSite;
-    let dischargeAttachSide = dischargeAttachment?.split("-")[0];
-    let sideFraction = 0.5;
-    if (dischargeAttachment?.split("-").length > 1) {
-        sideFraction = dischargeAttachment?.split("-")[1];
-    }
-     
-    // Next: Find the attachment site to receiving unitOp
+    let [dischargeAttachSide, sideFraction = 0.5] = dischargeAttachment?.split("-") || [];
+    sideFraction = parseFloat(sideFraction);
+    // Find the attachment site to receiving unitOp
     let myStreamId = data.output_streams[idx].stream_id;
     let landingSite = findLandingXY(myStreamId, plantData);
-    lineEndX = landingSite.x;
-    lineEndY = landingSite.y;
-    let landingSide = landingSite.landingSide;
-
-
-    if (dischargeAttachSide === "bottom") {
-        lineStartX = data.x + data.w / 2;
-        lineStartY = data.y + data.h;  
-        // if (originAttachment.split("-")(0) === "1") then add that to x-position
-    } else if (dischargeAttachSide === "top") {  // must be originating at top
-        lineStartX = data.x + data.w / 2;
-        lineStartY = data.y;  
-        // if (originAttachment.split("-")(0) === "1") then add that to x-position
-    } else if (dischargeAttachSide === "left"){
-        lineStartX = data.x;
-        lineStartY = data.y + data.h / 2; 
-    } else if (dischargeAttachSide === "right") {
-        lineStartX = data.x + data.w;
-        lineStartY = data.y + data.h / 2; 
-        // if (originAttachment.split("-")(0) === "1") then add that to y-position
+    ({ x: lineEndX, y: lineEndY, landingSide } = landingSite);
+    // Determine line start coordinates based on the discharge attachment side
+    switch (dischargeAttachSide) {
+        case "bottom":
+            lineStartX = data.x + data.w * sideFraction;
+            lineStartY = data.y + data.h;
+            break;
+        case "top":
+            lineStartX = data.x + data.w * sideFraction;
+            lineStartY = data.y;
+            break;
+        case "left":
+            lineStartX = data.x;
+            lineStartY = data.y + data.h * sideFraction;
+            break;
+        case "right":
+            lineStartX = data.x + data.w;
+            lineStartY = data.y + data.h * sideFraction;
+            break;
     }
-    
-    if (lineEndX === null || lineEndY ===null) {  
-        console.log("Need to handle dangling stream");
-        // Go fixed length in direction according to discharge side
-        if (dischargeAttachSide === "right") {
-            lineEndX = lineStartX + defaultLength;
-            lineEndY = lineStartY;
-        } else if (dischargeAttachSide === "bottom") {
-            lineEndX = lineStartX;
-            lineEndY = lineStartY + defaultLength;
-        } else if (dischargeAttachSide === "top") {
-            lineEndX = lineStartX;
-            lineEndY = lineStartY - defaultLength;
-        } else {  // must be on the left
-            lineEndX = lineStartX - defaultLength;
-            lineEndY = lineStartY;
+    // Handle dangling stream if lineEndX or lineEndY is null
+    if (lineEndX === null || lineEndY === null) {
+        console.log("Handling dangling streams");
+        switch (dischargeAttachSide) {
+            case "right":
+                lineEndX = lineStartX + defaultLength;
+                lineEndY = lineStartY;
+                break;
+            case "bottom":
+                lineEndX = lineStartX;
+                lineEndY = lineStartY + defaultLength;
+                break;
+            case "top":
+                lineEndX = lineStartX;
+                lineEndY = lineStartY - defaultLength;
+                break;
+            case "left":
+                lineEndX = lineStartX - defaultLength;
+                lineEndY = lineStartY;
+                break;
         }
     }
 
