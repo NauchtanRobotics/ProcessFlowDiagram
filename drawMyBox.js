@@ -16,7 +16,7 @@ var plantData = {  // This will be retrieved by a call to the back-end
             {"stream_id": "S0005", "landingSite": "top"}
         ],
         "output_streams": [
-            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom-0.7"}, 
+            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "left-0.7"}, 
             {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right"}]
       },
       { 
@@ -26,7 +26,7 @@ var plantData = {  // This will be retrieved by a call to the back-end
         "input_stream_ids": [
             {"stream_id": "S0002", "landingSite": "left-0"}],
         "output_streams": [
-            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right"},
+            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right-0.1"},
             {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom" }]
       },
       // ... more unit_operations
@@ -66,6 +66,9 @@ function createDraggableGroup(data, fillColor) {
 
 // Function to start dragging
 function startDrag(event, group) {
+    // Delete all previously drawn circles
+    deleteAllCircles();
+
     deleteLineAndArrows(group);
 
     // Get the initial mouse position
@@ -225,6 +228,129 @@ function deleteLineAndArrows(group) {
     group.referencedArrows = [];
 }
 
+var allLineSegments = [];  //[{id: <some_id>, data: [[p1, q1, p2, q2], [p2, q2, p3, q3]]}]
+
+function getNewLinesObject(guid, poly) {
+    var newObj = {};
+    newObj.id = guid;
+    newObj.data = [];
+
+    // Loop through the polygon points
+    for (let i = 0; i < poly.length - 1; i++) {
+        // Get the current and next points
+        let p1 = { x: parseFloat(poly[i][0]), y: parseFloat(poly[i][1]) };
+        let p2 = { x: parseFloat(poly[i + 1][0]), y: parseFloat(poly[i + 1][1]) };
+
+        // Add the segment defined by these two points
+        newObj.data.push({ p1: p1, p2: p2 });
+    }
+    return newObj;
+}
+
+/**
+ * Adds a new line segment to the allLineSegments array.
+ * @param {string} guid - The unique identifier for the line segment.
+ * @param {Array} poly - Array of polygon points in the form [[x1, y1], [x2, y2], ...].
+ */
+function addToAllLines(guid, poly) {
+    var newObj = getNewLinesObject(guid, poly);
+    allLineSegments.push(newObj);
+    return true;
+}
+// Function to calculate the orientation of the triplet (p, q, r)
+function orientor(p, q, r) {
+    const val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+    if (val === 0) return 0; // collinear
+    return (val > 0) ? 1 : 2; // clock or counterclock wise
+  }
+  
+  // Function to check if point q lies on line segment pr
+  function onSegment(p, q, r) {
+    return q.x <= Math.max(p.x, r.x) && q.x >= Math.min(p.x, r.x) &&
+           q.y <= Math.max(p.y, r.y) && q.y >= Math.min(p.y, r.y);
+  }
+  
+  // Function to check if line segment 'p1q1' and 'p2q2' intersect
+  function doIntersect(p1, q1, p2, q2) {
+    const o1 = orientor(p1, q1, p2);
+    const o2 = orientor(p1, q1, q2);
+    const o3 = orientor(p2, q2, p1);
+    const o4 = orientor(p2, q2, q1);
+  
+    // General case
+    if (o1 !== o2 && o3 !== o4) return true;
+  
+    // Special cases
+    if (o1 === 0 && onSegment(p1, p2, q1)) return true;
+    if (o2 === 0 && onSegment(p1, q2, q1)) return true;
+    if (o3 === 0 && onSegment(p2, p1, q2)) return true;
+    if (o4 === 0 && onSegment(p2, q1, q2)) return true;
+  
+    return false;
+  }
+  
+  // Function to calculate intersection point of two lines (p1, q1) and (p2, q2)
+  function lineIntersection(p1, q1, p2, q2) {
+    const A1 = q1.y - p1.y;
+    const B1 = p1.x - q1.x;
+    const C1 = A1 * p1.x + B1 * p1.y;
+  
+    const A2 = q2.y - p2.y;
+    const B2 = p2.x - q2.x;
+    const C2 = A2 * p2.x + B2 * p2.y;
+  
+    const determinant = A1 * B2 - A2 * B1;
+  
+    if (determinant === 0) {
+      // The lines are parallel
+      return null;
+    } else {
+      const x = (B2 * C1 - B1 * C2) / determinant;
+      const y = (A1 * C2 - A2 * C1) / determinant;
+      return { x, y };
+    }
+  }
+
+  function checkForCollisionWithExistingLines(proposedBridgeSection) {
+    for (let i = 0; i < proposedBridgeSection.length - 1; i++) {
+        const segment1 = { p1: { x: proposedBridgeSection[i][0], y: proposedBridgeSection[i][1] }, p2: { x: proposedBridgeSection[i + 1][0], y: proposedBridgeSection[i + 1][1] } };
+        for (let j = 0; j < allLineSegments.length; j++) {
+            const lines = allLineSegments[j].data;
+            for (let k = 0; k < lines.length; k++) {
+                const segment2 = { p1: lines[k].p1, p2: lines[k].p2 };
+                if (doIntersect(segment1.p1, segment1.p2, segment2.p1, segment2.p2)) {
+                    const intersection = lineIntersection(segment1.p1, segment1.p2, segment2.p1, segment2.p2);
+                    if (intersection) {
+                        console.log(`Collision detected between proposed section segment and line ${allLineSegments[j].id} at (${intersection.x}, ${intersection.y})`);
+                        draw.circle(5).move(intersection.x - 2.5, intersection.y - 2.5).fill('white'); // Mark intersection point
+                        return intersection;
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function deleteAllCircles() {
+    // Use find to get all circles within the SVG container
+    draw.find('circle').each(circle => circle.remove());
+}
+
+function deleteLineByID(uniqueID) {
+    const lineToDelete = SVG.get(uniqueID);
+    if (lineToDelete) {
+        lineToDelete.remove();
+    }
+}
+
+function generateRandomString() {
+    return 'xxxxxxxx'.replace(/[x]/g, function(c) {
+      var r = Math.random() * 16 | 0;
+      return r.toString(16);
+    });
+}
+
 function drawLineAndArrow(group, idx) {
     // Calculate start positions for line inside this function
     var { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide } = calculateLineEndsToDischargeStream(group.data, idx);
@@ -270,23 +396,26 @@ function drawLineAndArrow(group, idx) {
     midPointX = (lineStartX + lineEndX) / 2; // or some other logic to determine the bend point
     midPointY = (extremeStartY + extremeEndY) / 2; // or some other logic to determine the bend point
 
-    polyCoordinates = polyCoordinates.slice(0, insertIndex).concat([[midPointX, extremeStartY], [midPointX, midPointY], [midPointX, extremeEndY]], polyCoordinates.slice(insertIndex));
+    var proposedBridgeSection = [[midPointX, extremeStartY],  [midPointX, extremeEndY]]; //[midPointX, midPointY],
+    // Check if proposed offers any clashes with existing line segments in allLines.
+    var result = checkForCollisionWithExistingLines(proposedBridgeSection);
+    if (result) { 
+        var radius = 5;
+        console.log("Revisit the bridge section with an arc around the point of intersection.");
+    }
+    polyCoordinates = polyCoordinates.slice(0, insertIndex).concat(proposedBridgeSection, polyCoordinates.slice(insertIndex));
     
     // insert final point
     var endPoint = [lineEndX, lineEndY];
     polyCoordinates = polyCoordinates.concat([endPoint]);
 
+    const uniqueID = generateRandomString();
     var newLine = group.polyline(polyCoordinates)
         .fill('none')
-        .stroke({ color: '#000', width: 2 });
-
-    let landedSide = landingSide;
-    if (landingSide === null) { 
-        if (dischargeAttachSide === "right") landedSide = "left";
-        if (dischargeAttachSide === "left") landedSide = "right";
-        if (dischargeAttachSide === "top") landedSide = "bottom";
-        if (dischargeAttachSide === "bottom") landedSide = "top";
-    }
+        .stroke({ color: '#000', width: 2 })
+        .attr('id', uniqueID);
+    
+    addToAllLines(uniqueID, polyCoordinates);
 
     const landedSide = determineLandedSide(landingSide, dischargeAttachSide);
     var newArrow = drawArrow(group, landedSide, lineEndX, lineEndY)
