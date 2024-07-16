@@ -393,7 +393,12 @@ function drawLineAndArrow(group, idx) {
     } 
 
     // Calculate midpoint for orthogonal arrangement
-    midPointX = (lineStartX + lineEndX) / 2; // or some other logic to determine the bend point
+    midPointX = (lineStartX + lineEndX) / 2;
+    if (lineStartX < lineEndX) {
+        midPointX -= 5; // or some other logic to determine the bend point
+    } else {
+        midPointX += 5; 
+    }
     midPointY = (extremeStartY + extremeEndY) / 2; // or some other logic to determine the bend point
 
     var proposedBridgeSection = [[midPointX, extremeStartY],  [midPointX, extremeEndY]]; //[midPointX, midPointY],
