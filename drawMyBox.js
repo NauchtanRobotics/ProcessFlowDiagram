@@ -412,36 +412,15 @@ function drawLineAndArrow(group, idx) {
     var endPoint = [lineEndX, lineEndY];
     polyCoordinates = polyCoordinates.concat([endPoint]);
 
-    addToAllLines(group, polyCoordinates);  // allLines is used when checking for collisions.
-
     // Check if proposed offers any clashes with existing line segments in allLines.
-    let newLine;
-    var result = checkForCollisionWithExistingLines(proposedBridgeSection);
-    if (result) { 
-        let arcStartY, arcEndY;
-        if (extremeStartY < extremeEndY) {
-            arcStartY = Math.max(result.y - 5, extremeStartY);
-            arcEndY = Math.min(result.y + 5, extremeEndY);
-        } else {
-            arcStartY = Math.min(result.y + 5, extremeStartY);
-            arcEndY = Math.max(result.y - 5, extremeEndY);
-        }
-        var arcPoint1 = [midPoint1[0], arcStartY];
-        var arcPoint2 = [midPoint1[0], arcEndY];
-        var pathStr = `M${lineStartX} ${lineStartY}`;
-        if (newPoint1) {
-            pathStr = `${pathStr} L${newPoint1[0]} ${newPoint1[1]}`;
-        }
-        pathStr = `${pathStr} L${midPoint1[0]} ${midPoint1[1]} L${arcPoint1[0]} ${arcPoint1[1]} M${arcPoint2[0]} ${arcPoint2[1]} L${midPoint3[0]} ${midPoint3[1]}`
-        if (newPoint2) {
-            pathStr = `${pathStr} L${newPoint2[0]} ${newPoint2[1]}`;
-        }
-        pathStr = `${pathStr} L${lineEndX} ${lineEndY}`
-        newLine = group.path(pathStr).fill('none').stroke({ color: '#000', width: 2 });
-    } else {
-        newLine = group.polyline(polyCoordinates).fill('none').stroke({ color: '#000', width: 2 });
-    }
-    
+    var results = checkForCollisionWithExistingLines(proposedBridgeSection);
+    results.forEach(res => {
+        var circle = group.circle(5).fill('#fff').move(res.x - 2.5, res.y - 2.5);
+        group.referencedCircles.push(circle);
+    })
+    const newLine = group.polyline(polyCoordinates).fill('none').stroke({ color: '#000', width: 2 });
+    addToAllLines(group, idx, polyCoordinates);  // allLines is used when checking for collisions.
+
     const landedSide = determineLandedSide(landingSide, dischargeAttachSide);
     var newArrow = drawArrow(group, landedSide, lineEndX, lineEndY)
     
