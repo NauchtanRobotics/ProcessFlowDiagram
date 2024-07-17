@@ -219,9 +219,10 @@ function calculateLineEndsToDischargeStream(data, idx) {
 
 var allLineSegments = [];  //[{id: <some_id>, data: [[p1, q1, p2, q2], [p2, q2, p3, q3]]}]
 
-function getNewLinesObject(guid, poly) {
+function getNewLinesObject(unitId, streamId, poly) {
     var newObj = {};
-    newObj.id = guid;
+    newObj.unitId = unitId;
+    newObj.streamId = streamId;
     newObj.data = [];
 
     // Loop through the polygon points
@@ -236,9 +237,10 @@ function getNewLinesObject(guid, poly) {
     return newObj;
 }
 
-function addToAllLines(group, poly) {
-    var unit_id = group.data.unit_id
-    var newObj = getNewLinesObject(unit_id, poly);
+function addToAllLines(group, idx, poly) {
+    var unitId = group.data.id;
+    var streamId = group.data.output_streams[idx].stream_id;
+    var newObj = getNewLinesObject(unitId, streamId, poly);
     allLineSegments.push(newObj);
     return true;
 }
@@ -322,24 +324,26 @@ function orientor(p, q, r) {
   }
 
   function checkForCollisionWithExistingLines(proposedBridgeSection) {
+    var collisions = [];
     for (let i = 0; i < proposedBridgeSection.length - 1; i++) {
         const segment1 = { p1: { x: proposedBridgeSection[i][0], y: proposedBridgeSection[i][1] }, p2: { x: proposedBridgeSection[i + 1][0], y: proposedBridgeSection[i + 1][1] } };
         for (let j = 0; j < allLineSegments.length; j++) {
             const lines = allLineSegments[j].data;
-            const guid = allLineSegments[j].id;
+            const unitId = allLineSegments[j].unitId;
+            const streamId = allLineSegments[j].streamId;
             for (let k = 0; k < lines.length; k++) {        
                 const segment2 = { p1: lines[k].p1, p2: lines[k].p2 };
                 if (doIntersect(segment1.p1, segment1.p2, segment2.p1, segment2.p2)) {
                     const intersection = lineIntersection(segment1.p1, segment1.p2, segment2.p1, segment2.p2);
                     if (intersection) {
-                        console.log(`Collision detected between proposed section segment and line ${allLineSegments[j].id} at (${intersection.x}, ${intersection.y})`);
-                        return intersection;
+                        console.log(`Collision detected between proposed section segment and line ${streamId} from ${unitId} at (${intersection.x}, ${intersection.y})`);
+                        collisions.push(intersection);
                     }
                 }
             }
         }
     }
-    return null;
+    return collisions;
 }
 
 function generateRandomString() {
