@@ -67,6 +67,7 @@ function createDraggableGroup(data, fillColor) {
 // Function to start dragging
 function startDrag(event, group) {
     deleteLineAndArrows(group);
+    deleteItemsFromAllLines(group); 
 
     // Get the initial mouse position
     var startX = event.clientX;
@@ -107,6 +108,7 @@ function startDrag(event, group) {
                 console.log("Found unit = " + unitId);
                 var groupElement = allGroups.find(group => group.attr('data-id') === unitId);
                 deleteLineAndArrows(groupElement);
+                deleteItemsFromAllLines(groupElement); 
                 groupElement.data.output_streams.forEach(function(stream, idx) {
                     console.log(groupElement);
                     console.log("idx " + idx + ": attempting to redraw stream_id " + stream.stream_id);
@@ -244,15 +246,19 @@ function getNewLinesObject(guid, poly) {
     return newObj;
 }
 
-/**
- * Adds a new line segment to the allLineSegments array.
- * @param {string} guid - The unique identifier for the line segment.
- * @param {Array} poly - Array of polygon points in the form [[x1, y1], [x2, y2], ...].
- */
-function addToAllLines(guid, poly) {
-    var newObj = getNewLinesObject(guid, poly);
+function addToAllLines(group, poly) {
+    var unit_id = group.data.unit_id
+    var newObj = getNewLinesObject(unit_id, poly);
     allLineSegments.push(newObj);
     return true;
+}
+
+function deleteItemsFromAllLines(group) {
+    // Assuming group.data.unit_id is the unique identifier for the group's lines
+    var unitId = group.data.unit_id;
+    
+    // Filter out the lines that belong to the given group
+    allLineSegments = allLineSegments.filter(line => line.id !== unitId);
 }
 
 // Function to calculate the orientation of the triplet (p, q, r)
@@ -396,8 +402,7 @@ function drawLineAndArrow(group, idx) {
     var endPoint = [lineEndX, lineEndY];
     polyCoordinates = polyCoordinates.concat([endPoint]);
 
-    const uniqueID = generateRandomString();
-    addToAllLines(uniqueID, polyCoordinates);  // allLines is used when checking for collisions.
+    addToAllLines(group, polyCoordinates);  // allLines is used when checking for collisions.
 
     // Check if proposed offers any clashes with existing line segments in allLines.
     let newLine;
@@ -405,11 +410,11 @@ function drawLineAndArrow(group, idx) {
     if (result) { 
         let arcStartY, arcEndY;
         if (extremeStartY < extremeEndY) {
-            arcStartY = result.y - 5;
-            arcEndY = result.y + 5;
+            arcStartY = Math.max(result.y - 5, extremeStartY);
+            arcEndY = Math.min(result.y + 5, extremeEndY);
         } else {
-            arcStartY = result.y + 5;
-            arcEndY = result.y - 5;
+            arcStartY = Math.min(result.y + 5, extremeStartY);
+            arcEndY = Math.max(result.y - 5, extremeEndY);
         }
         var arcPoint1 = [midPoint1[0], arcStartY];
         var arcPoint2 = [midPoint1[0], arcEndY];
