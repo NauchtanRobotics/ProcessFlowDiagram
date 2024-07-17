@@ -51,6 +51,7 @@ function createDraggableGroup(data, fillColor) {
     group.data = data
     group.referencedLines = [];
     group.referencedArrows = [];
+    group.referencedCircles = [];
     
     data.output_streams.forEach(function(stream, idx) {
         drawLineAndArrow(group, idx);
@@ -66,9 +67,7 @@ function createDraggableGroup(data, fillColor) {
 
 // Function to start dragging
 function startDrag(event, group) {
-    deleteLineAndArrows(group);
-    deleteItemsFromAllLines(group); 
-
+    deleteUnitPeripherals(group); 
     // Get the initial mouse position
     var startX = event.clientX;
     var startY = event.clientY;
@@ -107,8 +106,7 @@ function startDrag(event, group) {
             if (unitId) {
                 console.log("Found unit = " + unitId);
                 var groupElement = allGroups.find(group => group.attr('data-id') === unitId);
-                deleteLineAndArrows(groupElement);
-                deleteItemsFromAllLines(groupElement); 
+                deleteUnitPeripherals(groupElement); 
                 groupElement.data.output_streams.forEach(function(stream, idx) {
                     console.log(groupElement);
                     console.log("idx " + idx + ": attempting to redraw stream_id " + stream.stream_id);
@@ -219,14 +217,6 @@ function calculateLineEndsToDischargeStream(data, idx) {
     return { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide };
 }
 
-function deleteLineAndArrows(group) {
-    console.log("Deleting lines and arrow for unit " + group.data.id);
-    group.referencedLines.forEach(line => line.remove());
-    group.referencedArrows.forEach(arrow => arrow.remove());
-    group.referencedLines = [];
-    group.referencedArrows = [];
-}
-
 var allLineSegments = [];  //[{id: <some_id>, data: [[p1, q1, p2, q2], [p2, q2, p3, q3]]}]
 
 function getNewLinesObject(guid, poly) {
@@ -253,13 +243,29 @@ function addToAllLines(group, poly) {
     return true;
 }
 
-function deleteItemsFromAllLines(group) {
+function deleteUnitPeripherals(group) {
+    deleteItemsFromAllLineSegments(group);
+    deleteLinesArrowsCirclesFromGroup(group);
+}
+
+function deleteItemsFromAllLineSegments(group) {
     // Assuming group.data.unit_id is the unique identifier for the group's lines
     var unitId = group.data.unit_id;
     
     // Filter out the lines that belong to the given group
     allLineSegments = allLineSegments.filter(line => line.id !== unitId);
 }
+
+function deleteLinesArrowsCirclesFromGroup(group) {
+    console.log("Deleting lines and arrow for unit " + group.data.id);
+    group.referencedLines.forEach(line => line.remove());
+    group.referencedArrows.forEach(arrow => arrow.remove());
+    group.referencedCircles.forEach(circle => circle.remove());
+    group.referencedLines = [];
+    group.referencedArrows = [];
+    group.referencedCircles = [];
+}
+
 
 // Function to calculate the orientation of the triplet (p, q, r)
 function orientor(p, q, r) {
