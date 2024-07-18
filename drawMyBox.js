@@ -37,22 +37,20 @@ var draw = SVG().addTo('#drawing').size('100%', '100%');
 
 function createDraggableGroup(data, fillColor) {
     var group = draw.group().attr({ 'data-id': data.id });
-    
-    // Create rectangle and text for the step
+    // need option to import a specialised shape / path element:
     group.rect = group.rect(data.w, data.h).attr({ fill: 'white', stroke: 'black' }).move(data.x, data.y);
-    
-    // Create text for the step
+
     group.text = group.text(data.name).attr({stroke: 'black' }).move(data.x + 25, data.y + 20);
-    
-    // Centering text within rectangle
-    var bbox = group.text.bbox();
+    var bbox = group.text.bbox(); // for centering text within rectangle
     group.text.move(data.x + (data.w - bbox.width) / 2, data.y + (data.h - bbox.height) / 2);
 
+    // embed data to allow editing later and initialise output streams' parts lists.
     group.data = data
     group.referencedLines = [];
     group.referencedArrows = [];
     group.referencedCircles = [];
-    
+
+    // a unit operation only owns it's output streams (not input streams); draw these:
     data.output_streams.forEach(function(stream, idx) {
         drawLineAndArrow(group, idx);
     });
@@ -61,71 +59,76 @@ function createDraggableGroup(data, fillColor) {
     group.on('mousedown', function(event) {
         startDrag(event, group);
     });
-   
     return group;
 }
 
-// Function to start dragging
 function startDrag(event, group) {
     deleteUnitPeripherals(group); 
-    // Get the initial mouse position
     var startX = event.clientX;
     var startY = event.clientY;
-    
-    // Get the initial position of the group
     var groupX = group.x();
     var groupY = group.y();
-    
-    // Function to handle dragging (mousemove event)
-    function drag(event) {
-        // Calculate the new position of the group
-        var dx = event.clientX - startX;
-        var dy = event.clientY - startY;
-        group.data.x = groupX + dx;
-        group.data.y = groupY + dy;
-        group.move(groupX + dx, groupY + dy);
+
+    // Add the event listeners
+    window.addEventListener('mousemove', onDrag);
+    window.addEventListener('mouseup', onEndDrag);
+
+    function onDrag(event) {
+        handleDrag(event, startX, startY, group, groupX, groupY);
     }
 
-    // Function to end dragging (mouseup event)
-    function endDrag() {
-        // Remove the event listeners
-        window.removeEventListener('mousemove', drag);
-        window.removeEventListener('mouseup', endDrag);
-        console.log("Commencing dragging.");
-    
-        // Reconnect to downstream units
-        group.data.output_streams.forEach(function(stream, idx) {
-            drawLineAndArrow(group, idx);
-        });
-    
-        // Reconnect to upstream units
-        group.data.input_stream_ids.forEach(function(stream, idx) {
-            var stream_id = stream.stream_id;
-            console.log("Searching for unit assoc with stream ID: " + stream_id);
-            var unitId = findInputUnits(stream.stream_id, plantData);
-            if (unitId) {
-                console.log("Found unit = " + unitId);
-                var groupElement = allGroups.find(group => group.attr('data-id') === unitId);
-                deleteUnitPeripherals(groupElement); 
-                groupElement.data.output_streams.forEach(function(stream, idx) {
-                    console.log(groupElement);
-                    console.log("idx " + idx + ": attempting to redraw stream_id " + stream.stream_id);
-                    drawLineAndArrow(groupElement, idx);
-                });
-            } else {
-                console.log("Unit id was null");
-            }
-        });
-    
-        // Write updated plantData back to DB/JSON object including latest positions for the dragged group
-        if (plantData) {
-            savePositionsToFile(plantData);
-        }
+    function onEndDrag() {
+        endDrag(group);
+        window.removeEventListener('mousemove', onDrag);
+        window.removeEventListener('mouseup', onEndDrag);
     }
-    
-    // Add the event listeners
-    window.addEventListener('mousemove', drag);
-    window.addEventListener('mouseup', endDrag);
+}
+
+function handleDrag(event, startX, startY, group, groupX, groupY) {
+    var dx = event.clientX - startX;
+    var dy = event.clientY - startY;
+    group.data.x = groupX + dx;
+    group.data.y = groupY + dy;
+    group.move(groupX + dx, groupY + dy);
+}
+
+function endDrag(group) {
+    console.log("Commencing dragging.");
+    reconnectUpstream(group);
+    reconnectDownstream(group);
+    savePositionsIfNeeded();
+}
+
+function reconnectUpstream(group) {
+    group.data.input_stream_ids.forEach(function(stream, idx) {
+        var stream_id = stream.stream_id;
+        console.log("Searching for unit assoc with stream ID: " + stream_id);
+        var unitId = findInputUnits(stream.stream_id, plantData);
+        if (unitId) {
+            console.log("Found unit = " + unitId);
+            var groupElement = allGroups.find(group => group.attr('data-id') === unitId);
+            deleteUnitPeripherals(groupElement); 
+            groupElement.data.output_streams.forEach(function(stream, idx) {
+                console.log(groupElement);
+                console.log("idx " + idx + ": attempting to redraw stream_id " + stream.stream_id);
+                drawLineAndArrow(groupElement, idx);
+            });
+        } else {
+            console.log("Unit id was null");
+        }
+    });
+}
+
+function reconnectDownstream(group) {
+    group.data.output_streams.forEach(function(stream, idx) {
+        drawLineAndArrow(group, idx);
+    });
+}
+
+function savePositionsIfNeeded() {
+    if (plantData) {
+        savePositionsToFile(plantData);
+    }
 }
 
 function findInputUnits(streamId, plantData) {
@@ -139,25 +142,33 @@ function findInputUnits(streamId, plantData) {
     return null;
 }
 
-  function findLandingXY(streamId, plantData) {
-    for (let unit of plantData.unit_operations) {  // But plantData may not have been updated!!
+function findLandingXY(streamId, plantData) {
+    if (!plantData || !plantData.unit_operations) {
+        return {x: null, y: null, landingSide: null};
+    }
+
+    for (let unit of plantData.unit_operations) {
         for (let stream of unit.input_stream_ids) {
             if (stream.stream_id.toLowerCase() === streamId.toLowerCase()) {
-                let landingSide = stream.landingSite.split("-")[0];
-                if (landingSide === "left") {
-                    return {x: unit.x, y: unit.y + unit.h/2, landingSide: landingSide};
-                } else if (landingSide === "right") {
-                    return {x: unit.x + unit.w, y: unit.y + unit.h/2, landingSide: landingSide};
-                } else if (landingSide === "top") {
-                    return {x: unit.x + unit.w/2, y: unit.y, landingSide: landingSide};
-                } else { 
-                    landingSide = "bottom"
-                    return {x: unit.x + unit.w/2, y: unit.y + unit.h, landingSide: landingSide};
+                const landingSide = stream.landingSite.split("-")[0];
+                const { x, y, w, h } = unit;
+
+                switch (landingSide) {
+                    case "left":
+                        return { x: x, y: y + h / 2, landingSide: landingSide };
+                    case "right":
+                        return { x: x + w, y: y + h / 2, landingSide: landingSide };
+                    case "top":
+                        return { x: x + w / 2, y: y, landingSide: landingSide };
+                    case "bottom":
+                    default:
+                        return { x: x + w / 2, y: y + h, landingSide: "bottom" };
                 }
             }
         }
     }
-    return {x: null, y: null, landingSide: null};
+
+    return { x: null, y: null, landingSide: null };
 }
 
 /*
