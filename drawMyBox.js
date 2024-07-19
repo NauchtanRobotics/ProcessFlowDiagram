@@ -37,28 +37,35 @@ var draw = SVG().addTo('#drawing').size('100%', '100%');
 
 function createDraggableGroup(data, fillColor) {
     var group = draw.group().attr({ 'data-id': data.id });
-    // need option to import a specialised shape / path element:
+    
+    // Create rectangle and text for the step
     group.rect = group.rect(data.w, data.h).attr({ fill: 'white', stroke: 'black' }).move(data.x, data.y);
-
+    
+    // Create text for the step
     group.text = group.text(data.name).attr({stroke: 'black' }).move(data.x + 25, data.y + 20);
-    var bbox = group.text.bbox(); // for centering text within rectangle
+    
+    // Centering text within rectangle
+    var bbox = group.text.bbox();
     group.text.move(data.x + (data.w - bbox.width) / 2, data.y + (data.h - bbox.height) / 2);
 
-    // embed data to allow editing later and initialise output streams' parts lists.
     group.data = data
     group.referencedLines = [];
     group.referencedArrows = [];
     group.referencedCircles = [];
-
-    // a unit operation only owns it's output streams (not input streams); draw these:
+    
     data.output_streams.forEach(function(stream, idx) {
         drawLineAndArrow(group, idx);
     });
 
     // Add event listeners for dragging
     group.on('mousedown', function(event) {
-        startDrag(event, group);
+        if (event.ctrlKey) {  // event.altKey
+            showUnitOpConfigForm(event, group);
+        } else {
+            startDrag(event, group);
+        }
     });
+
     return group;
 }
 
@@ -93,11 +100,48 @@ function handleDrag(event, startX, startY, group, groupX, groupY) {
 }
 
 function endDrag(group) {
-    console.log("Commencing dragging.");
+    console.log("End drag actions.");
     reconnectUpstream(group);
     reconnectDownstream(group);
     savePositionsIfNeeded();
 }
+
+function showUnitOpConfigForm(event, group) {
+    var formContainer = document.getElementById('formContainer');
+    var dataInput = document.getElementById('dataInput');
+
+    formContainer.style.display = 'block';
+    formContainer.style.left = event.clientX + 'px';
+    formContainer.style.top = event.clientY + 'px';
+
+    // load current data into the form
+    dataInput.value = group.data.name;  
+    // ...
+    console.log(plantData,toString());
+    // set onsubmit actions
+    formContainer.onsubmit = function(e) {
+        e.preventDefault();
+        // Update the data
+        group.data.name = dataInput.value;
+        // ... continue for all input data.
+
+        // update any GUI visible items, e.g. unit op name.
+        group.text.text(dataInput.value);
+        var bbox = group.text.bbox();
+        group.text.move(group.data.x + (group.data.w - bbox.width) / 2, group.data.y + (group.data.h - bbox.height) / 2);
+        formContainer.style.display = 'none';
+        hideUnitOpConfigForm();
+    };
+}
+
+function hideUnitOpConfigForm() {
+    var formContainer = document.getElementById('formContainer');
+    formContainer.style.display = 'none';
+}
+
+document.getElementById('cancel').addEventListener('click', function() {
+    hideUnitOpConfigForm();
+});
 
 function reconnectUpstream(group) {
     group.data.input_stream_ids.forEach(function(stream, idx) {
@@ -487,7 +531,7 @@ function determineLandedSide(landingSide, dischargeAttachSide) {
       // This will depend on your environment, e.g., Node.js, browser, etc.
       // For example, in Node.js, you might use fs.writeFileSync('path/to/file.json', jsonString);
   }
-  
+
   // Create unit_operations from the JSON data
   plantData.unit_operations.forEach(data => {
       var grp = createDraggableGroup(data, '#000');

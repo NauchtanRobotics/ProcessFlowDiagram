@@ -2,10 +2,27 @@
 <html>
 <head>
     <title>Interactive Box Drawing</title>
+    <style>
+        #formContainer {
+          display: none;
+          position: absolute;
+          background: white;
+          border: 1px solid #ccc;
+          padding: 10px;
+        }
+      </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
 </head>
 <body>
     <div id="drawing"></div>
+    <div id="formContainer">
+        <form id="dataForm">
+          <label for="dataInput">Enter Data:</label>
+          <input type="text" id="dataInput" name="dataInput" required>
+          <button type="submit">Submit</button>
+          <button id="cancel" type="button">Cancel</button>
+        </form>
+      </div>
     <script src="drawMyBox.js"></script>
 </body>
 </html>
