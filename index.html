@@ -2,23 +2,38 @@
 <html>
 <head>
     <title>Interactive Box Drawing</title>
-    <style>
-        #formContainer {
-          display: none;
-          position: absolute;
-          background: white;
-          border: 1px solid #ccc;
-          padding: 10px;
-        }
-      </style>
+    <link rel="stylesheet" type="text/css" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/3.1.1/svg.min.js"></script>
 </head>
 <body>
     <div id="drawing"></div>
     <div id="formContainer">
         <form id="dataForm">
-          <label for="dataInput">Enter Data:</label>
-          <input type="text" id="dataInput" name="dataInput" required>
+          <label for="unitName">UNIT OPERATION UNIQUE NAME</label>
+          <input type="text" id="unitName" name="unitName" required>
+          
+          <label for="inputStreamsContainer">INPUT STREAMS</label>
+          <div id="inputStreamsContainer">
+              <!-- Dynamic input stream inputs will be appended here -->
+          </div>
+          <div class="input-stream-wrapper">
+            <select id="newInputStream" name="newInputStream">
+                <!-- Options will be populated dynamically -->
+            </select>
+            <button type="button" id="addInputStreamButton">+</button>
+          </div>
+          
+          <label for="outputStreamsContainer">OUTPUT STREAMS</label>
+          <div id="outputStreamsContainer">
+            <!-- Dynamic output stream inputs will be appended here -->
+          </div>
+
+          <label for="unitType">UNIT TYPE</label>
+          <input type="text" id="unitType" name="unitType" required>
+
+          <label for="unitIcon">UNIT ICON</label>
+          <input type="text" id="unitIcon" name="unitIcon">
+
           <button type="submit">Submit</button>
           <button id="cancel" type="button">Cancel</button>
         </form>

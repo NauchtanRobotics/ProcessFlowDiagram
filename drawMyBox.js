@@ -12,11 +12,11 @@ var plantData = {  // This will be retrieved by a call to the back-end
         "name": "Thickener 1", 
         "x": 50, "y": 75, "w": 100, "h": 50,
         "input_stream_ids": [
-            {"stream_id": "S0001", "landingSite": "left-0.2"},
-            {"stream_id": "S0005", "landingSite": "top"}
+            {"stream_id": "s0001", "landingSite": "left-0.2"},
+            {"stream_id": "s0005", "landingSite": "top"}
         ],
         "output_streams": [
-            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "left-0.7"}, 
+            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom-0.7"}, 
             {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right"}]
       },
       { 
@@ -24,7 +24,7 @@ var plantData = {  // This will be retrieved by a call to the back-end
         "name": "Thickener 2", 
         "x": 350, "y": 75, "w": 100, "h": 50,
         "input_stream_ids": [
-            {"stream_id": "S0002", "landingSite": "left-0"}],
+            {"stream_id": "s0002", "landingSite": "left"}],
         "output_streams": [
             {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right-0.1"},
             {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom" }]
@@ -107,36 +107,186 @@ function endDrag(group) {
 }
 
 function showUnitOpConfigForm(event, group) {
+    setCurrentGroup(group); // Set the current group
+    displayForm();
+    populateFormFields(group);
+    setFormSubmitHandler(group);
+}
+
+function displayForm() {
     var formContainer = document.getElementById('formContainer');
-    var dataInput = document.getElementById('dataInput');
-
     formContainer.style.display = 'block';
-    formContainer.style.left = event.clientX + 'px';
-    formContainer.style.top = event.clientY + 'px';
+}
 
-    // load current data into the form
-    dataInput.value = group.data.name;  
-    // ...
-    console.log(plantData,toString());
-    // set onsubmit actions
+function populateFormFields(group) {
+    var unitName = document.getElementById('unitName');
+    unitName.value = group.data.name;  
+
+    var unitType = document.getElementById('unitType');
+    unitType.value = group.data.unitType;
+
+    populateDropdowns(group);
+}
+
+function setFormSubmitHandler(group) {
+    var formContainer = document.getElementById('formContainer');
     formContainer.onsubmit = function(e) {
         e.preventDefault();
-        // Update the data
-        group.data.name = dataInput.value;
-        // ... continue for all input data.
-
-        // update any GUI visible items, e.g. unit op name.
-        group.text.text(dataInput.value);
-        var bbox = group.text.bbox();
-        group.text.move(group.data.x + (group.data.w - bbox.width) / 2, group.data.y + (group.data.h - bbox.height) / 2);
+        updateGroupData(group);
+        updateGuiElements(group);
         formContainer.style.display = 'none';
         hideUnitOpConfigForm();
+        //console.log(JSON.stringify(plantData, null, 2)); // Updated to format JSON output
+        endDrag(group);
+
     };
+}
+
+function updateGroupData(group) {
+    var unitName = document.getElementById('unitName');
+    var unitType = document.getElementById('unitType');
+    
+    group.data.name = unitName.value;
+    group.data.unitType = unitType?.value;
+
+    // Clear previous input streams
+    group.data.input_stream_ids = [];
+
+    // Update input_stream_ids with new values
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var inputStreamInputs = inputStreamsContainer.getElementsByTagName('input');
+
+    for (var i = 0; i < inputStreamInputs.length; i++) {
+        var inputStreamId = inputStreamInputs[i].id.replace('inputStream', '');
+        if (inputStreamId) { // Ensure it's not an empty string
+            group.data.input_stream_ids.push({ stream_id: inputStreamId });
+        }
+    }
+}
+
+function updateGuiElements(group) {
+    // Update any GUI visible items, e.g., unit op name
+    group.text.text(group.data.name);
+    var bbox = group.text.bbox();
+    group.text.move(group.data.x + (group.data.w - bbox.width) / 2, group.data.y + (group.data.h - bbox.height) / 2);
 }
 
 function hideUnitOpConfigForm() {
     var formContainer = document.getElementById('formContainer');
     formContainer.style.display = 'none';
+}
+
+function addInputStreamInput(group) {
+    // First: retrieve entered value for writing 
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var newInputStreamSelect = document.getElementById('newInputStream');
+    var selectedStreamId = newInputStreamSelect.value?.split(" - ")[0];
+    var selectedStreamText = newInputStreamSelect.options[newInputStreamSelect.selectedIndex].text;
+
+    var isStreamIdPresent = group.data.input_stream_ids.some(function(stream) {
+        return stream.stream_id.toLowerCase() === selectedStreamId.toLowerCase();
+    });
+
+    if (!isStreamIdPresent) {
+        // Add the selected stream to the group's input_stream_ids
+        group.data.input_stream_ids.push({ stream_id: selectedStreamId });
+
+        // Create the input field for the new stream
+        var inputStreamInput = document.createElement('input');
+        inputStreamInput.type = 'text';
+        inputStreamInput.id = `inputStream${selectedStreamId}`;
+        inputStreamInput.name = `inputStream${selectedStreamId}`;
+        inputStreamInput.value = selectedStreamText;
+        inputStreamInput.readOnly = true; // Make it read-only to prevent editing
+
+        // Append the new input field to the container
+        inputStreamsContainer.appendChild(inputStreamInput);
+
+        // Optionally, reset the select dropdown to the default option
+        newInputStreamSelect.value = '';
+    } else {
+        console.log(`Stream ID ${selectedStreamId} already exists in the list of input streams.`);
+    }
+}
+
+function createFieldForExistingInputStream(stream) {
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var inputStreamInput = document.createElement('input');
+    inputStreamInput.id = `inputStream${stream.stream_id}`;
+    inputStreamInput.name = `inputStream${stream.stream_id}`;
+    inputStreamInput.value = `${stream.stream_id} - ${globalStreamNames[stream.stream_id] || 'Unknown'}`; // Retrieve name from globalStreamNames
+    inputStreamInput.readOnly = true; // Make it read-only to prevent editing
+    inputStreamsContainer.appendChild(inputStreamInput);
+}
+
+function createFieldForExistingOutputStream(stream) {
+    var outputStreamsContainer = document.getElementById('outputStreamsContainer');
+    var outputStreamInput = document.createElement('input');
+    outputStreamInput.id = `outputStream${stream.stream_id}`;
+    outputStreamInput.name = `outputStream${stream.stream_id}`;
+    outputStreamInput.value = `${stream.stream_id} - ${globalStreamNames[stream.stream_id] || 'Unknown'}`; // Retrieve name from globalStreamNames
+    outputStreamInput.readOnly = true; // Make it read-only to prevent editing
+    outputStreamsContainer.appendChild(outputStreamInput);
+}
+
+var currentGroup = null; // Define a global variable to hold the current group
+
+function setCurrentGroup(group) {
+    currentGroup = group; // Set the current group
+}
+
+document.getElementById('addInputStreamButton').addEventListener('click', function() {
+    if (currentGroup) { // Ensure the currentGroup is set
+        addInputStreamInput(currentGroup);
+    } else {
+        console.error("No group selected.");
+    }
+});
+
+var globalStreamNames = Object();
+
+function populateDropdowns(currentGroup) {
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var newInputStreamSelect = document.getElementById('newInputStream');
+    var outputStreamsContainer = document.getElementById('outputStreamsContainer');
+
+    inputStreamsContainer.innerHTML = ''; // Clear previous output streams
+    newInputStreamSelect.innerHTML = ''; // Clear previous options
+    outputStreamsContainer.innerHTML = ''; // Clear previous output streams
+
+    // Add default option to the newInputStream select control
+    var defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.text = '-- select a stream --';
+    newInputStreamSelect.appendChild(defaultOption);
+
+    // Gather labels for stream names
+    globalStreamNames = {};
+    plantData.unit_operations.forEach(function(unit) {
+        unit.output_streams.forEach(function(stream) {
+            globalStreamNames[stream.stream_id] = stream.name;
+        });
+    });
+
+    // Populate the form
+    plantData.unit_operations.forEach(function(unit) {
+        if (unit.id !== currentGroup.data.id) {
+            // Populate inputStreams dropdown
+            unit.output_streams.forEach(function(stream) {
+                var inputOption = document.createElement('option');
+                inputOption.value = stream.stream_id;
+                inputOption.text = `${stream.stream_id} - ${stream.name}`; // Set the label
+                newInputStreamSelect.appendChild(inputOption);
+            });
+        } else {
+            unit.input_stream_ids.forEach(function(stream) {
+                createFieldForExistingInputStream(stream);
+            });         
+            unit.output_streams.forEach(function(stream) {
+                createFieldForExistingOutputStream(stream);
+            });
+        }
+    });    
 }
 
 document.getElementById('cancel').addEventListener('click', function() {
@@ -194,19 +344,19 @@ function findLandingXY(streamId, plantData) {
     for (let unit of plantData.unit_operations) {
         for (let stream of unit.input_stream_ids) {
             if (stream.stream_id.toLowerCase() === streamId.toLowerCase()) {
-                const landingSide = stream.landingSite.split("-")[0];
+                const landingSide = stream.landingSite?.split("-")[0];
                 const { x, y, w, h } = unit;
 
                 switch (landingSide) {
-                    case "left":
-                        return { x: x, y: y + h / 2, landingSide: landingSide };
                     case "right":
                         return { x: x + w, y: y + h / 2, landingSide: landingSide };
                     case "top":
                         return { x: x + w / 2, y: y, landingSide: landingSide };
                     case "bottom":
-                    default:
                         return { x: x + w / 2, y: y + h, landingSide: "bottom" };
+                    case "left":
+                    default:
+                        return { x: x, y: y + h / 2, landingSide: landingSide };
                 }
             }
         }
