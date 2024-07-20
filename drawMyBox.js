@@ -19,7 +19,21 @@ document.getElementById('addInputStreamButton').addEventListener('click', functi
     }
 });
 
-var thickenerPath = "M0 0 l0 10 l5 0 m0 -4 l0 25 l50 20 l0 3 m0 -3 l50 -20 l0 -25 m0 4 l5 0 l0 -10"
+var defaultSymbol = "M0 0 l100 0 l0 50 l-100 0 l0 -50";
+var thickenerPath = "M0 0 l0 10 l5 0 m0 -4 l0 25 l50 20 l0 3 m0 -3 l50 -20 l0 -25 m0 4 l5 0 l0 -10";
+
+var iconDesigns = {
+    "default": {  // simple rectangle
+        iconPath: defaultSymbol,
+        landingSites: ["left", "top", "left-0.3", "left-0.7", "bottom-0.3", "right-0.1"],
+        attachmentSites: ["right", "bottom", "right-0.9", "right-0.05"]
+    },
+    "Thickener": {
+        iconPath: thickenerPath,
+        landingSites: ["top-0.4", "top-0.3"],
+        attachmentSites: ["right-0.05", "bottom"]
+    }
+}
 
 // Assume we have an initial JSON object with group positions and IDs
 var plantData = {  // This will be retrieved by a call to the back-end
@@ -27,7 +41,8 @@ var plantData = {  // This will be retrieved by a call to the back-end
       { 
         "id": "u0001", 
         "name": "Thickener 1", 
-        "x": 50, "y": 75, "w": 100, "h": 50,
+        "x": 50, "y": 75,
+        "unitSymbol": "Thickener",
         "input_stream_ids": [
             {"stream_id": "s0001", "landingSite": "left-0.2"},
             {"stream_id": "s0005", "landingSite": "top"}
@@ -39,7 +54,7 @@ var plantData = {  // This will be retrieved by a call to the back-end
       { 
         "id": "u0002", 
         "name": "Thickener 2", 
-        "x": 350, "y": 75, "w": 100, "h": 50,
+        "x": 350, "y": 75,
         "input_stream_ids": [
             {"stream_id": "s0002", "landingSite": "left"}],
         "output_streams": [
@@ -50,16 +65,27 @@ var plantData = {  // This will be retrieved by a call to the back-end
     ]
   };
 
-var draw = SVG().addTo('#drawing').size('100%', '100%');
-
-function createDraggableGroup(data, fillColor) {
+function createDraggableGroup(data) {
     var group = draw.group().attr({ 'data-id': data.id });
     
-    // Create rectangle and text for the step
-    group.rect = group.rect(data.w, data.h).attr({ fill: 'white', stroke: 'black' }).move(data.x, data.y);
-    
+    // Create rect/path to depict the Unit Operation icon
+    var iconSymbol = data.unitSymbol;
+    var iconPath = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].iconPath) || iconDesigns["default"].iconPath
+
+    group.rect = group.path(iconPath)
+                      .attr({ fill: 'white', stroke: 'black' })
+                      .move(data.x, data.y);
+
+    // calc exact height and width
+    var bbox = group.rect.bbox();
+    data.w = bbox.width;
+    data.h = bbox.height;
+
     // Create text for the step
-    group.text = group.text(data.name).attr({stroke: 'black' }).move(data.x + 25, data.y + 20);
+    group.text = group.text(data.name)
+                      .attr({stroke: 'black' })
+                      .font({ size: 12, weight: 200, family: 'Menlo' })  // family: 'Roboto' 'Helvetica' 
+                      .move(data.x + 25, data.y + 20);
     
     // Centering text within rectangle
     var bbox = group.text.bbox();
@@ -69,10 +95,6 @@ function createDraggableGroup(data, fillColor) {
     group.referencedLines = [];
     group.referencedArrows = [];
     group.referencedCircles = [];
-    
-    data.output_streams.forEach(function(stream, idx) {
-        drawLineAndArrow(group, idx);
-    });
 
     // Add event listeners for dragging
     group.on('mousedown', function(event) {
@@ -673,18 +695,28 @@ function determineLandedSide(landingSide, dischargeAttachSide) {
     }
 }
 
-  // Function to save the updated positions to a file
-  function savePositionsToFile(updatedData) {
-      // Convert the JSON object to a string
-      var jsonString = JSON.stringify(updatedData);
-     
-      // Code to save jsonString to a file
-      // This will depend on your environment, e.g., Node.js, browser, etc.
-      // For example, in Node.js, you might use fs.writeFileSync('path/to/file.json', jsonString);
-  }
+// Function to save the updated positions to a file
+function savePositionsToFile(updatedData) {
+    // Convert the JSON object to a string
+    var jsonString = JSON.stringify(updatedData);
+    
+    // Code to save jsonString to a file
+    // This will depend on your environment, e.g., Node.js, browser, etc.
+    // For example, in Node.js, you might use fs.writeFileSync('path/to/file.json', jsonString);
+}
 
-  // Create unit_operations from the JSON data
-  plantData.unit_operations.forEach(data => {
-      var grp = createDraggableGroup(data, '#000');
-      allGroups.push(grp);
-  });
+// Create unit_operations from the JSON data
+plantData.unit_operations.forEach(data => {
+    var grp = createDraggableGroup(data);
+    allGroups.push(grp);
+});
+
+// Now connect them all together
+plantData.unit_operations.forEach(data => {
+    var unitId = data.id;
+    var group = allGroups.find(group => group.attr('data-id') === unitId);
+    data.output_streams.forEach(function(stream, idx) {
+        drawLineAndArrow(group, idx);
+    });
+});
+
