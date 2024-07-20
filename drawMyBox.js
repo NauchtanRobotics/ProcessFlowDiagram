@@ -2,7 +2,24 @@ const arrowWidth = 13;
 const arrowHeight = 5;
 const defaultLength = 25;
 
+var draw = SVG().addTo('#drawing').size('100%', '100%');
 var allGroups = [];  // This should be your array or object containing all group objects
+var globalStreamNames = Object();
+var currentGroup = null; // Define a global variable to hold the current group
+
+function setCurrentGroup(group) {
+    currentGroup = group; // Set the current group
+}
+
+document.getElementById('addInputStreamButton').addEventListener('click', function() {
+    if (currentGroup) { // Ensure the currentGroup is set
+        addInputStreamInput(currentGroup);
+    } else {
+        console.error("No group selected.");
+    }
+});
+
+var thickenerPath = "M0 0 l0 10 l5 0 m0 -4 l0 25 l50 20 l0 3 m0 -3 l50 -20 l0 -25 m0 4 l5 0 l0 -10"
 
 // Assume we have an initial JSON object with group positions and IDs
 var plantData = {  // This will be retrieved by a call to the back-end
@@ -228,22 +245,6 @@ function createFieldForExistingOutputStream(stream) {
     outputStreamInput.readOnly = true; // Make it read-only to prevent editing
     outputStreamsContainer.appendChild(outputStreamInput);
 }
-
-var currentGroup = null; // Define a global variable to hold the current group
-
-function setCurrentGroup(group) {
-    currentGroup = group; // Set the current group
-}
-
-document.getElementById('addInputStreamButton').addEventListener('click', function() {
-    if (currentGroup) { // Ensure the currentGroup is set
-        addInputStreamInput(currentGroup);
-    } else {
-        console.error("No group selected.");
-    }
-});
-
-var globalStreamNames = Object();
 
 function populateDropdowns(currentGroup) {
     var inputStreamsContainer = document.getElementById('inputStreamsContainer');
