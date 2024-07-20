@@ -20,16 +20,25 @@ document.getElementById('addInputStreamButton').addEventListener('click', functi
 });
 
 var defaultSymbol = "M0 0 l100 0 l0 50 l-100 0 l0 -50";
+var centrifugalPumpPath = "M20,0 A20,20 0 1,1 20,40 A20,20 0 1,1 20,0 Z M20,0 l20,0 l0,6 l-6,0 M10,37 l-10,10 l40,0 l-10,-10 M20,20 l-25,0";
 var thickenerPath = "M0 0 l0 10 l5 0 m0 -4 l0 25 l50 20 l0 3 m0 -3 l50 -20 l0 -25 m0 4 l5 0 l0 -10";
 
 var iconDesigns = {
     "default": {  // simple rectangle
         iconPath: defaultSymbol,
+        textCentre: {x: 0.5, y: 0.5},
         landingSites: ["left", "top", "left-0.3", "left-0.7", "bottom-0.3", "right-0.1"],
         attachmentSites: ["right", "bottom", "right-0.9", "right-0.05"]
     },
+    "Pump - Centrifugal": {
+        iconPath: centrifugalPumpPath,
+        textCentre: {x: 0.5, y: 1.2},
+        landingSites: ["left"],
+        attachmentSites: ["right-0.05"]
+    },
     "Thickener": {
         iconPath: thickenerPath,
+        textCentre: {x: 0.5, y: 0.3},
         landingSites: ["top-0.4", "top-0.3"],
         attachmentSites: ["right-0.05", "bottom"]
     }
@@ -48,17 +57,18 @@ var plantData = {  // This will be retrieved by a call to the back-end
             {"stream_id": "s0005", "landingSite": "top"}
         ],
         "output_streams": [
-            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom-0.7"}, 
-            {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right"}]
+            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom"}, 
+            {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right-0.1"}]
       },
       { 
         "id": "u0002", 
         "name": "Thickener 2", 
         "x": 350, "y": 75,
+        unitSymbol: "Pump - Centrifugal",
         "input_stream_ids": [
-            {"stream_id": "s0002", "landingSite": "left"}],
+            {"stream_id": "s0002", "landingSite": "left-0.40"}],
         "output_streams": [
-            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right-0.1"},
+            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right-0.05"},
             {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom" }]
       },
       // ... more unit_operations
@@ -82,14 +92,17 @@ function createDraggableGroup(data) {
     data.h = bbox.height;
 
     // Create text for the step
+    var textCentre = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].textCentre) || iconDesigns["default"].textCentre;
     group.text = group.text(data.name)
                       .attr({stroke: 'black' })
-                      .font({ size: 12, weight: 200, family: 'Menlo' })  // family: 'Roboto' 'Helvetica' 
-                      .move(data.x + 25, data.y + 20);
+                      .font({ size: 12, weight: 200, family: 'Menlo' }); // family: 'Roboto' 'Helvetica'
+                      // weight and anchor: 'middle' both seem to change nothing
     
-    // Centering text within rectangle
+    // Calculate the position to center the text based on textCentre and bounding box dims
     var bbox = group.text.bbox();
-    group.text.move(data.x + (data.w - bbox.width) / 2, data.y + (data.h - bbox.height) / 2);
+    var textX = data.x + data.w * textCentre.x - bbox.width / 2;
+    var textY = data.y + data.h * textCentre.y - bbox.height / 2;
+    group.text.move(textX, textY);
 
     group.data = data
     group.referencedLines = [];
