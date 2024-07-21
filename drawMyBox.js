@@ -44,6 +44,8 @@ var iconDesigns = {
     }
 }
 
+var iconDesignsKeys = Object.keys(iconDesigns);
+
 // Assume we have an initial JSON object with group positions and IDs
 var plantData = {  // This will be retrieved by a call to the back-end
     "unit_operations": [
@@ -174,8 +176,8 @@ function populateFormFields(group) {
     var unitName = document.getElementById('unitName');
     unitName.value = group.data.name;  
 
-    var unitType = document.getElementById('unitType');
-    unitType.value = group.data.unitType;
+//    var unitType = document.getElementById('unitType');
+//    unitType.value = group.data.unitType; // done in populateDropdowns
 
     populateDropdowns(group);
 }
@@ -285,10 +287,12 @@ function populateDropdowns(currentGroup) {
     var inputStreamsContainer = document.getElementById('inputStreamsContainer');
     var newInputStreamSelect = document.getElementById('newInputStream');
     var outputStreamsContainer = document.getElementById('outputStreamsContainer');
+    var unitTypeSelect = document.getElementById('unitType');
 
     inputStreamsContainer.innerHTML = ''; // Clear previous output streams
     newInputStreamSelect.innerHTML = ''; // Clear previous options
     outputStreamsContainer.innerHTML = ''; // Clear previous output streams
+    unitTypeSelect.innerHTML = '';
 
     // Add default option to the newInputStream select control
     var defaultOption = document.createElement('option');
@@ -296,6 +300,20 @@ function populateDropdowns(currentGroup) {
     defaultOption.text = '-- select a stream --';
     newInputStreamSelect.appendChild(defaultOption);
 
+    // Add default option to the unitType select control
+    
+    var defaultTypeOption = document.createElement('option');
+    defaultTypeOption.value = '';
+    defaultTypeOption.text = '-- select a type --';
+    unitTypeSelect.appendChild(defaultTypeOption);
+    iconDesignsKeys.forEach(function(iconSymbol) {
+        var inputOption = document.createElement('option');
+        inputOption.value = iconSymbol;
+        inputOption.text = iconSymbol;
+        unitTypeSelect.appendChild(inputOption);
+    })
+    unitTypeSelect.value = currentGroup.data.unitSymbol;
+    
     // Gather labels for stream names
     globalStreamNames = {};
     plantData.unit_operations.forEach(function(unit) {
@@ -304,7 +322,7 @@ function populateDropdowns(currentGroup) {
         });
     });
 
-    // Populate the form
+    // Populate the input and output streams fields
     plantData.unit_operations.forEach(function(unit) {
         if (unit.id !== currentGroup.data.id) {
             // Populate inputStreams dropdown
