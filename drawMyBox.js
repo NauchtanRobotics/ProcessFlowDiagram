@@ -79,33 +79,6 @@ var plantData = {  // This will be retrieved by a call to the back-end
 
 function createDraggableGroup(data) {
     var group = draw.group().attr({ 'data-id': data.id });
-    
-    // Create rect/path to depict the Unit Operation icon
-    var iconSymbol = data.unitSymbol;
-    var iconPath = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].iconPath) || iconDesigns["default"].iconPath
-
-    group.rect = group.path(iconPath)
-                      .attr({ fill: 'white', stroke: 'black' })
-                      .move(data.x, data.y);
-
-    // calc exact height and width
-    var bbox = group.rect.bbox();
-    data.w = bbox.width;
-    data.h = bbox.height;
-
-    // Create text for the step
-    var textCentre = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].textCentre) || iconDesigns["default"].textCentre;
-    group.text = group.text(data.name)
-                      .attr({stroke: 'black' })
-                      .font({ size: 12, weight: 200, family: 'Menlo' }); // family: 'Roboto' 'Helvetica'
-                      // weight and anchor: 'middle' both seem to change nothing
-    
-    // Calculate the position to center the text based on textCentre and bounding box dims
-    var bbox = group.text.bbox();
-    var textX = data.x + data.w * textCentre.x - bbox.width / 2;
-    var textY = data.y + data.h * textCentre.y - bbox.height / 2;
-    group.text.move(textX, textY);
-
     group.data = data
     group.referencedLines = [];
     group.referencedArrows = [];
@@ -119,14 +92,45 @@ function createDraggableGroup(data) {
             startDrag(event, group);
         }
     });
+
+    updateGuiElements(group);
     return group;
 }
 
 function updateGuiElements(group) {
     // Update any GUI visible items, e.g., unit op name
-    group.text.text(group.data.name);
-    var bbox = group.text.bbox();
-    group.text.move(group.data.x + (group.data.w - bbox.width) / 2, group.data.y + (group.data.h - bbox.height) / 2);
+    // Create rect/path to depict the Unit Operation icon
+    var iconSymbol = group.data.unitSymbol;
+    var iconPath = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].iconPath) || iconDesigns["default"].iconPath
+    if (group.symbolElement) {
+        group.symbolElement.remove();
+    }
+    group.symbolElement = group.path(iconPath)
+                               .attr({ fill: 'white', stroke: 'black' })
+                               .move(group.data.x, group.data.y);
+    
+    // calc exact height and width
+    var bbox = group.symbolElement.bbox();
+    group.data.w = bbox.width;
+    group.data.h = bbox.height;
+
+    // Create text for the step
+    var textCentre = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].textCentre) || iconDesigns["default"].textCentre;
+    
+    if (group.textElement) {
+        group.textElement.text(group.data.name);
+    } else {
+        group.textElement = group.text(group.data.name)
+                               .attr({ stroke: 'black' })
+                               .font({ size: 12, weight: 200, family: 'Menlo' });
+    }
+
+    // Calculate the position to center the text based on textCentre and bounding box dims
+    var textBBox = group.textElement.bbox();
+    var data = group.data;
+    var textX = data.x + data.w * textCentre.x - textBBox.width / 2;
+    var textY = data.y + data.h * textCentre.y - textBBox.height / 2;
+    group.textElement.move(textX, textY);
 }
 
 function startDrag(event, group) {
@@ -161,9 +165,18 @@ function handleDrag(event, startX, startY, group, groupX, groupY) {
 
 function endDrag(group) {
     console.log("End drag actions.");
+    drawAllConnectedStreamsForUnitOp(group);
+    savePositionsIfNeeded();
+}
+
+function drawAllConnectedStreamsForUnitOp(group) {
     reconnectUpstream(group);
     reconnectDownstream(group);
-    savePositionsIfNeeded();
+}
+
+function redrawConnections(group) {
+    deleteUnitPeripherals(group); 
+    drawAllConnectedStreamsForUnitOp(group);
 }
 
 function showUnitOpConfigForm(event, group) {
@@ -194,6 +207,7 @@ function setFormSubmitHandler(group) {
         e.preventDefault();
         updateGroupData(group);
         updateGuiElements(group);
+        redrawConnections(group);
         formContainer.style.display = 'none';
         hideUnitOpConfigForm();
         //console.log(JSON.stringify(plantData, null, 2)); // Updated to format JSON output
