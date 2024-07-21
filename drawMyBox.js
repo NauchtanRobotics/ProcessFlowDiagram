@@ -30,7 +30,7 @@ var iconDesigns = {
         landingSites: ["left", "top", "left-0.3", "left-0.7", "bottom-0.3", "right-0.1"],
         attachmentSites: ["right", "bottom", "right-0.9", "right-0.05"]
     },
-    "Pump - Centrifugal": {
+    "Pump (Centrifugal)": {
         iconPath: centrifugalPumpPath,
         textCentre: {x: 0.5, y: 1.2},
         landingSites: ["left"],
@@ -48,30 +48,30 @@ var iconDesignsKeys = Object.keys(iconDesigns);
 
 // Assume we have an initial JSON object with group positions and IDs
 var plantData = {  // This will be retrieved by a call to the back-end
-    "unit_operations": [
+    unit_operations: [
       { 
-        "id": "u0001", 
-        "name": "Thickener 1", 
-        "x": 50, "y": 75,
-        "unitSymbol": "Thickener",
-        "input_stream_ids": [
-            {"stream_id": "s0001", "landingSite": "left-0.2"},
-            {"stream_id": "s0005", "landingSite": "top"}
+        id: "u0001", 
+        name: "Thickener 1", 
+        x: 50, y: 75,
+        unitSymbol: "Thickener",
+        input_stream_ids: [
+            {stream_id: "s0001", landingSite: "left-0.2"},
+            {stream_id: "s0005", landingSite: "top"}
         ],
-        "output_streams": [
-            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "bottom"}, 
-            {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right-0.1"}]
+        output_streams: [
+            {stream_id: "s0003", name: "Thickener 1 Underflow", attachmentSite: "bottom"}, 
+            {stream_id: "s0002", name: "Thickener 1 Overflow", attachmentSite: "left-0.1"}]
       },
       { 
-        "id": "u0002", 
-        "name": "Thickener 2", 
-        "x": 350, "y": 75,
-        unitSymbol: "Pump - Centrifugal",
-        "input_stream_ids": [
-            {"stream_id": "s0002", "landingSite": "left-0.40"}],
-        "output_streams": [
-            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right-0.05"},
-            {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom" }]
+        id: "u0002", 
+        name: "Thickener 2", 
+        x: 350, y: 75,
+        unitSymbol: "Pump (Centrifugal)",
+        input_stream_ids: [
+            {stream_id: "s0002", landingSite: "left-0.40"}],
+        output_streams: [
+            {stream_id: "s0004", name: "Thickener 2 Overflow", attachmentSite: "right-0.05"},
+            {stream_id: "s0005", name: "Thickener 2 Underflow", attachmentSite: "bottom" }]
       },
       // ... more unit_operations
     ]
