@@ -119,8 +119,14 @@ function createDraggableGroup(data) {
             startDrag(event, group);
         }
     });
-
     return group;
+}
+
+function updateGuiElements(group) {
+    // Update any GUI visible items, e.g., unit op name
+    group.text.text(group.data.name);
+    var bbox = group.text.bbox();
+    group.text.move(group.data.x + (group.data.w - bbox.width) / 2, group.data.y + (group.data.h - bbox.height) / 2);
 }
 
 function startDrag(event, group) {
@@ -198,10 +204,10 @@ function setFormSubmitHandler(group) {
 
 function updateGroupData(group) {
     var unitName = document.getElementById('unitName');
-    var unitType = document.getElementById('unitType');
+    var unitSymbol = document.getElementById('unitType');
     
     group.data.name = unitName.value;
-    group.data.unitType = unitType?.value;
+    group.data.unitSymbol = unitSymbol?.value;
 
     // Clear previous input streams
     group.data.input_stream_ids = [];
@@ -216,13 +222,6 @@ function updateGroupData(group) {
             group.data.input_stream_ids.push({ stream_id: inputStreamId });
         }
     }
-}
-
-function updateGuiElements(group) {
-    // Update any GUI visible items, e.g., unit op name
-    group.text.text(group.data.name);
-    var bbox = group.text.bbox();
-    group.text.move(group.data.x + (group.data.w - bbox.width) / 2, group.data.y + (group.data.h - bbox.height) / 2);
 }
 
 function hideUnitOpConfigForm() {
@@ -415,7 +414,6 @@ function findLandingXY(streamId, plantData) {
             }
         }
     }
-
     return { x: null, y: null, landingSide: null };
 }
 
@@ -472,7 +470,6 @@ function calculateLineEndsToDischargeStream(data, idx) {
                 break;
         }
     }
-
     return { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide };
 }
 
@@ -681,7 +678,7 @@ function drawLineAndArrow(group, idx) {
     addToAllLines(group, idx, polyCoordinates);  // allLines is used when checking for collisions.
 
     const landedSide = determineLandedSide(landingSide, dischargeAttachSide);
-    var newArrow = drawArrow(group, landedSide, lineEndX, lineEndY)
+    var newArrow = drawArrowHeads(group, landedSide, lineEndX, lineEndY)
     
     newArrow.fill('#000');
 
@@ -690,7 +687,7 @@ function drawLineAndArrow(group, idx) {
     group.referencedArrows.push(newArrow);
 }
 
-function drawArrow(group, landedSide, lineEndX, lineEndY) {
+function drawArrowHeads(group, landedSide, lineEndX, lineEndY) {
     let newArrow;
     switch (landedSide) {
         case "right":
@@ -742,7 +739,7 @@ plantData.unit_operations.forEach(data => {
     allGroups.push(grp);
 });
 
-// Now connect them all together
+// Now connect them all together by drawing connector lines with arrowheads.
 plantData.unit_operations.forEach(data => {
     var unitId = data.id;
     var group = allGroups.find(group => group.attr('data-id') === unitId);
