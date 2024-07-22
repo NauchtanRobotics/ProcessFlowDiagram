@@ -687,21 +687,19 @@ function drawLineAndArrow(group, idx) {
     results.forEach(res => {
         var circle = group.circle(5).fill('#fff').move(res.x - 2.5, res.y - 2.5);
         group.referencedCircles.push(circle);
-    })
+    });
     const newLine = group.polyline(polyCoordinates).fill('none').stroke({ color: '#000', width: 2 });
     addToAllLines(group, idx, polyCoordinates);  // allLines is used when checking for collisions.
 
     const landedSide = determineLandedSide(landingSide, dischargeAttachSide);
-    var newArrow = drawArrowHeads(group, landedSide, lineEndX, lineEndY)
-    
-    newArrow.fill('#000');
+    var newArrow = drawArrowHeads(group, landedSide, lineEndX, lineEndY);
 
     // If you need to reference these later, you can assign them to properties on the group
     group.referencedLines.push(newLine);
     group.referencedArrows.push(newArrow);
 }
 
-function drawArrowHeads(group, landedSide, lineEndX, lineEndY) {
+function drawArrowHeads(group, landedSide, lineEndX, lineEndY, fillColour = "#000") {
     let newArrow;
     switch (landedSide) {
         case "right":
