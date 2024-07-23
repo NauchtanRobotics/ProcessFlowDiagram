@@ -138,11 +138,12 @@ function updateGuiElements(group) {
 
 function startDrag(event, group) {
     deleteUnitPeripherals(group); 
-    var startX = event.clientX;
+    var startX = event.clientX; // where the mouse was clicked
     var startY = event.clientY;
-    var groupX = group.x();
+    var groupX = group.x(); // left-most point of group which includes all elements inc text (which can be to the left of the unit symbol)
     var groupY = group.y();
-
+    var symbolX = group.data.x;  // left-most point of the unit operation symbol outline
+    var symboly = group.data.y;
     // Add the event listeners
     window.addEventListener('mousemove', onDrag);
     window.addEventListener('mouseup', onEndDrag);
@@ -152,7 +153,7 @@ function startDrag(event, group) {
     }
 
     function onEndDrag() {
-        endDrag(group);
+        endDrag(group, symbolX, symboly, groupX, groupY);
         window.removeEventListener('mousemove', onDrag);
         window.removeEventListener('mouseup', onEndDrag);
     }
@@ -161,15 +162,17 @@ function startDrag(event, group) {
 function handleDrag(event, startX, startY, group, groupX, groupY) {
     var dx = event.clientX - startX;
     var dy = event.clientY - startY;
-    group.data.x = groupX + dx;
-    group.data.y = groupY + dy;
-    group.move(group.data.x, group.data.y);
+    group.move(groupX + dx, groupY + dy);
 }
 
-function endDrag(group) {
-    console.log("End drag actions. group.data.x: " + group.data.x);
-
-    console.log(JSON.stringify(group.data, null, 2)); // Updated to format JSON output // plantData
+function endDrag(group, symboxOrigX, symbolOrigY, groupX, groupY) {
+    console.log("End drag actions.");
+    var dx = group.x() - groupX;
+    var dy = group.y() - groupY;
+    // Update plantData
+    group.data.x = symboxOrigX + dx;
+    group.data.y = symbolOrigY + dy;
+    //console.log(JSON.stringify(plantData, null, 2));
     drawAllConnectedStreamsForUnitOp(group);
     savePositionsIfNeeded();
 }
