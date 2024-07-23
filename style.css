@@ -1,0 +1,108 @@
+
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+}
+
+#drawing {
+    height: 75vh;
+    width: 100%;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    position: relative;
+    z-index: 1; /* Lower z-index so the form can appear on top */
+}
+
+#formContainer {
+    display: none;
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    width: 300px;
+    border: 1px solid #ccc;
+    z-index: 2; /* Higher z-index to ensure it appears on top of #drawing */
+}
+
+#formContainer form {
+    display: flex;
+    flex-direction: column;
+}
+
+#formContainer label {
+    margin-bottom: 4px; /* Reduced margin for smaller labels */
+    font-weight: bold;
+    color: #333;
+    font-size: 8px; /* Set font size to 12px (about half of the default size) */
+}
+
+#formContainer input,
+#formContainer select {
+    margin-bottom: 12px;
+    padding: 7px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 10px;
+}
+
+#inputStreamsContainer input,
+#outputStreamsContainer input  {
+    display: block;
+    margin-bottom: 8px; /* Space between inputs */
+    width: calc(100% - 0px); /* Adjust width to fit within container, considering padding */
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+}
+
+#formContainer button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #fff;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.input-stream-wrapper {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+#formContainer button#addInputStreamButton {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: #00ccff; /* med blue #007bff;*/
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+}
+
+#formContainer button#addInputStreamButton:hover {
+    background-color: #88def3;
+}
+
+#formContainer button[type="submit"] {
+    background-color: #f5be0a; /*#f5680a; burnt orange */
+}
+
+#formContainer button[type="submit"]:hover {
+    background-color: #f3d675;
+}
+
+#formContainer button#cancel {
+    background-color: #042cdf; /* royal blue */
+}
+
+#formContainer button#cancel:hover {
+    background-color: #4561e0; /*#22b7c2; aqua */
+}

@@ -2,60 +2,90 @@ const arrowWidth = 13;
 const arrowHeight = 5;
 const defaultLength = 25;
 
+var draw = SVG().addTo('#drawing').size('100%', '100%');
 var allGroups = [];  // This should be your array or object containing all group objects
+var globalStreamNames = Object();
+var currentGroup = null; // Define a global variable to hold the current group
+
+function setCurrentGroup(group) {
+    currentGroup = group; // Set the current group
+}
+
+document.getElementById('addInputStreamButton').addEventListener('click', function() {
+    if (currentGroup) { // Ensure the currentGroup is set
+        addInputStreamInput(currentGroup);
+    } else {
+        console.error("No group selected.");
+    }
+});
+
+var defaultSymbol = "M0 0 l100 0 l0 50 l-100 0 l0 -50";
+var centrifugalPumpPath = "M20,0 A20,20 0 1,1 20,40 A20,20 0 1,1 20,0 Z M20,0 l20,0 l0,6 l-6,0 M10,37 l-10,10 l40,0 l-10,-10 M20,20 l-25,0";
+var thickenerPath = "M0 0 l0 10 l5 0 m0 -4 l0 25 l50 20 l0 3 m0 -3 l50 -20 l0 -25 m0 4 l5 0 l0 -10";
+
+var iconDesigns = {
+    default: {  // simple rectangle
+        iconPath: defaultSymbol,
+        textCentre: {x: 0.5, y: 0.5},
+        landingSites: ["left", "top", "left-0.3", "left-0.7", "bottom-0.3", "right-0.1"],
+        attachmentSites: ["right", "bottom", "right-0.9", "right-0.05"]
+    },
+    "Pump (Centrifugal)": {
+        iconPath: centrifugalPumpPath,
+        textCentre: {x: 0.5, y: 1.2},
+        landingSites: ["left"],
+        attachmentSites: ["right-0.05"]
+    },
+    Thickener: {
+        iconPath: thickenerPath,
+        textCentre: {x: 0.5, y: 0.3},
+        landingSites: ["top-0.4", "top-0.3"],
+        attachmentSites: ["right-0.05", "bottom"]
+    }
+}
+
+var iconDesignsKeys = Object.keys(iconDesigns);
 
 // Assume we have an initial JSON object with group positions and IDs
 var plantData = {  // This will be retrieved by a call to the back-end
-    "unit_operations": [
+    unit_operations: [
       { 
-        "id": "u0001", 
-        "name": "Thickener 1", 
-        "x": 50, "y": 75, "w": 100, "h": 50,
-        "input_stream_ids": [
-            {"stream_id": "S0001", "landingSite": "left-0.2"},
-            {"stream_id": "S0005", "landingSite": "top"}
+        id: "u0001", 
+        name: "Thickener 1", 
+        x: 50, y: 75,
+        unitSymbol: "Thickener",
+        input_stream_ids: [
+            {stream_id: "s0001", landingSite: "left-0.2"},
+            {stream_id: "s0005", landingSite: "top"}
         ],
-        "output_streams": [
-            {"stream_id": "s0003", "name": "Thickener 1 Underflow", "attachmentSite": "left-0.7"}, 
-            {"stream_id": "s0002", "name": "Thickener 1 Overflow", "attachmentSite": "right"}]
+        output_streams: [
+            //{stream_id: "s0003", name: "Thickener 1 Underflow", attachmentSite: "bottom"}, 
+            {stream_id: "s0002", name: "Thickener 1 Overflow", attachmentSite: "left-0.1"}
+        ]
       },
       { 
-        "id": "u0002", 
-        "name": "Thickener 2", 
-        "x": 350, "y": 75, "w": 100, "h": 50,
-        "input_stream_ids": [
-            {"stream_id": "S0002", "landingSite": "left-0"}],
-        "output_streams": [
-            {"stream_id": "s0004", "name": "Thickener 2 Overflow", "attachmentSite": "right-0.1"},
-            {"stream_id": "s0005", "name": "Thickener 2 Underflow", "attachmentSite": "bottom" }]
+        id: "u0002", 
+        name: "Thickener 2 O/F Pump", 
+        x: 350, y: 75,
+        unitSymbol: "Pump (Centrifugal)",
+        input_stream_ids: [
+            {stream_id: "s0002", landingSite: "left-0.40"}
+        ],
+        output_streams: [
+            {stream_id: "s0004", name: "Thickener 2 Overflow", attachmentSite: "right-0.05"},
+            {stream_id: "s0005", name: "Thickener 2 Underflow", attachmentSite: "bottom" }
+        ]
       },
       // ... more unit_operations
     ]
   };
 
-var draw = SVG().addTo('#drawing').size('100%', '100%');
-
-function createDraggableGroup(data, fillColor) {
+function createDraggableGroup(data) {
     var group = draw.group().attr({ 'data-id': data.id });
-    
-    // Create rectangle and text for the step
-    group.rect = group.rect(data.w, data.h).attr({ fill: 'white', stroke: 'black' }).move(data.x, data.y);
-    
-    // Create text for the step
-    group.text = group.text(data.name).attr({stroke: 'black' }).move(data.x + 25, data.y + 20);
-    
-    // Centering text within rectangle
-    var bbox = group.text.bbox();
-    group.text.move(data.x + (data.w - bbox.width) / 2, data.y + (data.h - bbox.height) / 2);
-
     group.data = data
     group.referencedLines = [];
     group.referencedArrows = [];
     group.referencedCircles = [];
-    
-    data.output_streams.forEach(function(stream, idx) {
-        drawLineAndArrow(group, idx);
-    });
 
     // Add event listeners for dragging
     group.on('mousedown', function(event) {
@@ -66,16 +96,54 @@ function createDraggableGroup(data, fillColor) {
         }
     });
 
+    updateGuiElements(group);
     return group;
+}
+
+function updateGuiElements(group) {
+    // Update any GUI visible items, e.g., unit op name
+    // Create rect/path to depict the Unit Operation icon
+    var iconSymbol = group.data.unitSymbol;
+    var iconPath = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].iconPath) || iconDesigns["default"].iconPath
+    if (group.symbolElement) {
+        group.symbolElement.remove();
+    }
+    group.symbolElement = group.path(iconPath)
+                               .attr({ fill: 'white', stroke: 'black' })
+                               .move(group.data.x, group.data.y);
+    
+    // calc exact height and width
+    var bbox = group.symbolElement.bbox();
+    group.data.w = bbox.width;
+    group.data.h = bbox.height;
+
+    // Create text for the step
+    var textCentre = (iconDesigns[iconSymbol] && iconDesigns[iconSymbol].textCentre) || iconDesigns["default"].textCentre;
+    
+    if (group.textElement) {
+        group.textElement.text(group.data.name);
+    } else {
+        group.textElement = group.text(group.data.name)
+                               .attr({ stroke: 'black' })
+                               .font({ size: 12, weight: 200, family: 'Menlo' });
+    }
+
+    // Calculate the position to center the text based on textCentre and bounding box dims
+    var textBBox = group.textElement.bbox();
+    var data = group.data;
+    var textX = data.x + data.w * textCentre.x - textBBox.width / 2;
+    var textY = data.y + data.h * textCentre.y - textBBox.height / 2;
+    group.textElement.move(textX, textY);
 }
 
 function startDrag(event, group) {
     deleteUnitPeripherals(group); 
-    var startX = event.clientX;
+    var startX = event.clientX; // where the mouse was clicked
     var startY = event.clientY;
-    var groupX = group.x();
+    var groupX = group.x(); // left-most point of group which includes all elements inc text (which can be to the left of the unit symbol)
     var groupY = group.y();
-
+    var symbolX = group.data.x;  // left-most point of the unit operation symbol outline
+    var symboly = group.data.y;
     // Add the event listeners
     window.addEventListener('mousemove', onDrag);
     window.addEventListener('mouseup', onEndDrag);
@@ -85,7 +153,7 @@ function startDrag(event, group) {
     }
 
     function onEndDrag() {
-        endDrag(group);
+        endDrag(group, symbolX, symboly, groupX, groupY);
         window.removeEventListener('mousemove', onDrag);
         window.removeEventListener('mouseup', onEndDrag);
     }
@@ -94,44 +162,83 @@ function startDrag(event, group) {
 function handleDrag(event, startX, startY, group, groupX, groupY) {
     var dx = event.clientX - startX;
     var dy = event.clientY - startY;
-    group.data.x = groupX + dx;
-    group.data.y = groupY + dy;
     group.move(groupX + dx, groupY + dy);
 }
 
-function endDrag(group) {
+function endDrag(group, symboxOrigX, symbolOrigY, groupX, groupY) {
     console.log("End drag actions.");
-    reconnectUpstream(group);
-    reconnectDownstream(group);
+    var dx = group.x() - groupX;
+    var dy = group.y() - groupY;
+    // Update plantData
+    group.data.x = symboxOrigX + dx;
+    group.data.y = symbolOrigY + dy;
+    //console.log(JSON.stringify(plantData, null, 2));
+    drawAllConnectedStreamsForUnitOp(group);
     savePositionsIfNeeded();
 }
 
 function showUnitOpConfigForm(event, group) {
+    setCurrentGroup(group); // Set the current group
+    displayForm();
+    populateFormFields(group);
+    setFormSubmitHandler(group);
+}
+
+function displayForm() {
     var formContainer = document.getElementById('formContainer');
-    var dataInput = document.getElementById('dataInput');
-
     formContainer.style.display = 'block';
-    formContainer.style.left = event.clientX + 'px';
-    formContainer.style.top = event.clientY + 'px';
+}
 
-    // load current data into the form
-    dataInput.value = group.data.name;  
-    // ...
-    console.log(plantData,toString());
-    // set onsubmit actions
+function populateFormFields(group) {
+    var unitName = document.getElementById('unitName');
+    unitName.value = group.data.name;  
+
+//    var unitType = document.getElementById('unitType');
+//    unitType.value = group.data.unitType; // done in populateDropdowns
+
+    populateDropdowns(group);
+}
+
+function setFormSubmitHandler(group) {
+    var formContainer = document.getElementById('formContainer');
     formContainer.onsubmit = function(e) {
         e.preventDefault();
-        // Update the data
-        group.data.name = dataInput.value;
-        // ... continue for all input data.
-
-        // update any GUI visible items, e.g. unit op name.
-        group.text.text(dataInput.value);
-        var bbox = group.text.bbox();
-        group.text.move(group.data.x + (group.data.w - bbox.width) / 2, group.data.y + (group.data.h - bbox.height) / 2);
+        updateGroupData(group);
+        updateGuiElements(group);
+        redrawConnections(group); // drawAllConnectedStreamsForUnitOp(group); this version doesn't delete
         formContainer.style.display = 'none';
         hideUnitOpConfigForm();
+        //console.log(JSON.stringify(plantData, null, 2)); // Updated to format JSON output
+        
+
     };
+}
+
+function updateGroupData(group) {
+    var unitName = document.getElementById('unitName');
+    var unitSymbol = document.getElementById('unitType');
+    
+    group.data.name = unitName.value;
+    group.data.unitSymbol = unitSymbol?.value;
+
+    // Clear previous input streams
+    group.data.input_stream_ids = [];
+
+    // Update input_stream_ids with new values
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var inputStreamInputs = inputStreamsContainer.getElementsByTagName('input');
+
+    for (var i = 0; i < inputStreamInputs.length; i++) {
+        var inputStreamId = inputStreamInputs[i].id.replace('inputStream', '');
+        if (inputStreamId) { // Ensure it's not an empty string
+            group.data.input_stream_ids.push({ stream_id: inputStreamId });
+        }
+    }
+}
+
+function redrawConnections(group) {
+    deleteUnitPeripherals(group); 
+    drawAllConnectedStreamsForUnitOp(group);
 }
 
 function hideUnitOpConfigForm() {
@@ -139,9 +246,127 @@ function hideUnitOpConfigForm() {
     formContainer.style.display = 'none';
 }
 
+function addInputStreamInput(group) {
+    // First: retrieve entered value for writing 
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var newInputStreamSelect = document.getElementById('newInputStream');
+    var selectedStreamId = newInputStreamSelect.value?.split(" - ")[0];
+    var selectedStreamText = newInputStreamSelect.options[newInputStreamSelect.selectedIndex].text;
+
+    var isStreamIdPresent = group.data.input_stream_ids.some(function(stream) {
+        return stream.stream_id.toLowerCase() === selectedStreamId.toLowerCase();
+    });
+
+    if (!isStreamIdPresent) {
+        // Add the selected stream to the group's input_stream_ids
+        group.data.input_stream_ids.push({ stream_id: selectedStreamId });
+
+        // Create the input field for the new stream
+        var inputStreamInput = document.createElement('input');
+        inputStreamInput.type = 'text';
+        inputStreamInput.id = `inputStream${selectedStreamId}`;
+        inputStreamInput.name = `inputStream${selectedStreamId}`;
+        inputStreamInput.value = selectedStreamText;
+        inputStreamInput.readOnly = true; // Make it read-only to prevent editing
+
+        // Append the new input field to the container
+        inputStreamsContainer.appendChild(inputStreamInput);
+
+        // Optionally, reset the select dropdown to the default option
+        newInputStreamSelect.value = '';
+    } else {
+        console.log(`Stream ID ${selectedStreamId} already exists in the list of input streams.`);
+    }
+}
+
+function createFieldForExistingInputStream(stream) {
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var inputStreamInput = document.createElement('input');
+    inputStreamInput.id = `inputStream${stream.stream_id}`;
+    inputStreamInput.name = `inputStream${stream.stream_id}`;
+    inputStreamInput.value = `${stream.stream_id} - ${globalStreamNames[stream.stream_id] || 'Unknown'}`; // Retrieve name from globalStreamNames
+    inputStreamInput.readOnly = true; // Make it read-only to prevent editing
+    inputStreamsContainer.appendChild(inputStreamInput);
+}
+
+function createFieldForExistingOutputStream(stream) {
+    var outputStreamsContainer = document.getElementById('outputStreamsContainer');
+    var outputStreamInput = document.createElement('input');
+    outputStreamInput.id = `outputStream${stream.stream_id}`;
+    outputStreamInput.name = `outputStream${stream.stream_id}`;
+    outputStreamInput.value = `${stream.stream_id} - ${globalStreamNames[stream.stream_id] || 'Unknown'}`; // Retrieve name from globalStreamNames
+    outputStreamInput.readOnly = true; // Make it read-only to prevent editing
+    outputStreamsContainer.appendChild(outputStreamInput);
+}
+
+function populateDropdowns(currentGroup) {
+    var inputStreamsContainer = document.getElementById('inputStreamsContainer');
+    var newInputStreamSelect = document.getElementById('newInputStream');
+    var outputStreamsContainer = document.getElementById('outputStreamsContainer');
+    var unitTypeSelect = document.getElementById('unitType');
+
+    inputStreamsContainer.innerHTML = ''; // Clear previous output streams
+    newInputStreamSelect.innerHTML = ''; // Clear previous options
+    outputStreamsContainer.innerHTML = ''; // Clear previous output streams
+    unitTypeSelect.innerHTML = '';
+
+    // Add default option to the newInputStream select control
+    var defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.text = '-- select a stream --';
+    newInputStreamSelect.appendChild(defaultOption);
+
+    // Add default option to the unitType select control
+    
+    var defaultTypeOption = document.createElement('option');
+    defaultTypeOption.value = '';
+    defaultTypeOption.text = '-- select a type --';
+    unitTypeSelect.appendChild(defaultTypeOption);
+    iconDesignsKeys.forEach(function(iconSymbol) {
+        var inputOption = document.createElement('option');
+        inputOption.value = iconSymbol;
+        inputOption.text = iconSymbol;
+        unitTypeSelect.appendChild(inputOption);
+    })
+    unitTypeSelect.value = currentGroup.data.unitSymbol;
+    
+    // Gather labels for stream names
+    globalStreamNames = {};
+    plantData.unit_operations.forEach(function(unit) {
+        unit.output_streams.forEach(function(stream) {
+            globalStreamNames[stream.stream_id] = stream.name;
+        });
+    });
+
+    // Populate the input and output streams fields
+    plantData.unit_operations.forEach(function(unit) {
+        if (unit.id !== currentGroup.data.id) {
+            // Populate inputStreams dropdown
+            unit.output_streams.forEach(function(stream) {
+                var inputOption = document.createElement('option');
+                inputOption.value = stream.stream_id;
+                inputOption.text = `${stream.stream_id} - ${stream.name}`; // Set the label
+                newInputStreamSelect.appendChild(inputOption);
+            });
+        } else {
+            unit.input_stream_ids.forEach(function(stream) {
+                createFieldForExistingInputStream(stream);
+            });         
+            unit.output_streams.forEach(function(stream) {
+                createFieldForExistingOutputStream(stream);
+            });
+        }
+    });    
+}
+
 document.getElementById('cancel').addEventListener('click', function() {
     hideUnitOpConfigForm();
 });
+
+function drawAllConnectedStreamsForUnitOp(group) {
+    reconnectUpstream(group);
+    reconnectDownstream(group);
+}
 
 function reconnectUpstream(group) {
     group.data.input_stream_ids.forEach(function(stream, idx) {
@@ -153,7 +378,6 @@ function reconnectUpstream(group) {
             var groupElement = allGroups.find(group => group.attr('data-id') === unitId);
             deleteUnitPeripherals(groupElement); 
             groupElement.data.output_streams.forEach(function(stream, idx) {
-                console.log(groupElement);
                 console.log("idx " + idx + ": attempting to redraw stream_id " + stream.stream_id);
                 drawLineAndArrow(groupElement, idx);
             });
@@ -194,24 +418,23 @@ function findLandingXY(streamId, plantData) {
     for (let unit of plantData.unit_operations) {
         for (let stream of unit.input_stream_ids) {
             if (stream.stream_id.toLowerCase() === streamId.toLowerCase()) {
-                const landingSide = stream.landingSite.split("-")[0];
+                const landingSide = stream.landingSite?.split("-")[0];
                 const { x, y, w, h } = unit;
 
                 switch (landingSide) {
-                    case "left":
-                        return { x: x, y: y + h / 2, landingSide: landingSide };
                     case "right":
                         return { x: x + w, y: y + h / 2, landingSide: landingSide };
                     case "top":
                         return { x: x + w / 2, y: y, landingSide: landingSide };
                     case "bottom":
-                    default:
                         return { x: x + w / 2, y: y + h, landingSide: "bottom" };
+                    case "left":
+                    default:
+                        return { x: x, y: y + h / 2, landingSide: landingSide };
                 }
             }
         }
     }
-
     return { x: null, y: null, landingSide: null };
 }
 
@@ -268,7 +491,6 @@ function calculateLineEndsToDischargeStream(data, idx) {
                 break;
         }
     }
-
     return { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide };
 }
 
@@ -413,80 +635,111 @@ function drawLineAndArrow(group, idx) {
     var { lineStartX, lineStartY, lineEndX, lineEndY, dischargeAttachSide, landingSide } = calculateLineEndsToDischargeStream(group.data, idx);
 
     // Create a new polyline with at least 5 nodes using the SVG.js methods
-    let polyCoordinates = [[lineStartX, lineStartY]]
-    let extremeStartY = lineStartY;
-    let insertIndex = 1;
-    if (dischargeAttachSide === "bottom") {
-        // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
-        extremeStartY += defaultLength;
-        insertIndex += 1;
-        //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
-    } else if (dischargeAttachSide === "top") {
-        extremeStartY -= defaultLength;
-        insertIndex += 1;
-    }
-    
-    let extremeEndY = lineEndY;
-    let newPoint1, newPoint2;
-    if (landingSide === "bottom") {
-        // insert coordinates after the first coordinates for a point that is vertically below the starting point, i.e. [lineStartX, lineStartY + defaultLength]
-        extremeEndY += defaultLength;
-        if (dischargeAttachSide === "bottom") { // i.e. same side and landing
-            extremeEndY = Math.max(extremeEndY, extremeStartY);
-            extremeStartY = extremeEndY;
-        }
-        newPoint1 = [lineStartX, extremeStartY];
-        newPoint2 = [lineEndX, extremeEndY];
-        polyCoordinates = polyCoordinates.concat([newPoint1, newPoint2])
-        //polyCoordinates = fiveNodeLine.slice(0, 1).concat([newPoint], fiveNodeLine.slice(1));
-    } else if (landingSide === "top") {
-        extremeEndY -= defaultLength;
-        if (dischargeAttachSide === "top") { // i.e. same side as landingSide
-            extremeEndY = Math.min(extremeEndY, extremeStartY);
-            extremeStartY = extremeEndY;
-        }
-        newPoint1 = [lineStartX, extremeStartY];
-        newPoint2 = [lineEndX, extremeEndY];
-        polyCoordinates = polyCoordinates.concat([newPoint1, newPoint2])
-    } 
+    let point1 = [lineStartX, lineStartY]; 
+    if (group.data.id == "u0001" && idx == 0) { console.log(`LineStartX: ${lineStartX}, lineEndX ${lineEndX}`); }
+    let point2, point3, point4, point5;
+    let point6 = [lineEndX, lineEndY];
 
-    // Calculate midpoint for orthogonal arrangement
-    let midPointX = (lineStartX + lineEndX) / 2;
-    if (lineStartX < lineEndX) {
-        midPointX -= 5; // or some other logic to determine the bend point
-    } else {
-        midPointX += 5; 
+    switch (dischargeAttachSide) {
+        case "bottom": // insert coordinates after the first coordinates for a point that is vertically below the starting point
+            point2 = [lineStartX, lineStartY + defaultLength];
+            break;
+        case "top": 
+            point2 = [lineStartX, lineStartY - defaultLength];
+            break;
+        case "right":
+            point2 = [lineStartX + defaultLength, lineStartY];
+            break;
+        case "left":
+            point2 = [lineStartX - defaultLength, lineStartY];
+            break;
+        default:
+            break;
     }
-    //let midPointY = (extremeStartY + extremeEndY) / 2; // or some other logic to determine the bend point
-    var midPoint1 = [midPointX, extremeStartY];
-    var midPoint3 = [midPointX, extremeEndY];
-    var proposedBridgeSection = [midPoint1,  midPoint3]; // var midPoint2 = [midPointX, midPointY],
-    polyCoordinates = polyCoordinates.slice(0, insertIndex).concat(proposedBridgeSection, polyCoordinates.slice(insertIndex));
+
+    switch (landingSide) {
+        case "bottom":
+            point5 = [lineEndX, lineEndY + defaultLength];
+            break;
+        case "top":
+            point5 = [lineEndX, lineEndY - defaultLength];
+            break;
+        case "left":
+            point5 = [lineEndX - defaultLength, lineEndY];
+            break;
+        case "right":
+            point5 = [lineEndX + defaultLength, lineEndY];
+            break;
+    }
+
+    // handle special cases of same side attachment and landing: point3 == point 4
+    if (landingSide === "bottom" && dischargeAttachSide === "bottom") { // i.e. same side and landing
+        var point3Y = Math.max(point2[1], point5[1]);
+        var midPointX = (point2[0] + point5[0]) / 2;
+        point3 = [midPointX, point3Y];
+        point4 = [midPointX, point3Y];
+    }
+    else if (landingSide === "top" && dischargeAttachSide === "top") { // i.e. same side as landingSide
+        var point3Y = Math.min(point2[1], point5[1]);
+        var midPointX = (point2[0] + point5[0]) / 2;
+        point3 = [midPointX, point3Y];
+        point4 = [midPointX, point3Y];
+    } 
+    // handle special case of non-adjacent attachment and landing sides: point 3 must be either lower than both or higher than both units.
+    else if ((dischargeAttachSide === "right" && lineStartX > lineEndX) || (dischargeAttachSide === "left" && lineEndX > lineStartX) ) { 
+        if (point5[1] > point2[1]) { // then go down and under
+            var point3Y = Math.max(point2[1], point5[1]);
+            point3 = [point2[0], point3Y];
+            point4 = [point5[0], point3Y];
+        } else { // go up and over
+            var point3Y = Math.min(point2[1], point5[1]);
+            point3 = [point2[0], point3Y];
+            point4 = [point5[0], point3Y];
+        }
+    } 
+    else if (landingSide) {  // not so special, point3 and point 4 will be vertically aligned
+        var midPointX = (point2[0] + point5[0]) / 2;
+        // offset a little so that we don't have collinear lines when pattern is criss-cross
+        if (lineStartX < lineEndX) {
+            midPointX -= 5; 
+        } else if (landingSide !== null){
+            midPointX += 5; 
+        }
+        point3 = [midPointX, point2[1]];
+        point4 = [midPointX, point5[1]];
+    }
     
-    // insert final point
-    var endPoint = [lineEndX, lineEndY];
-    polyCoordinates = polyCoordinates.concat([endPoint]);
+    let polyCoordinates, fillColour, proposedBridgeSection;
+
+    if (landingSide === null) {
+        // Create a polyline with just point1 and point2
+        polyCoordinates = proposedBridgeSection = [point1, point2];
+        fillColour = 'red';
+    } else {
+        polyCoordinates = [point1, point2, point3, point4, point5, point6];
+        proposedBridgeSection = [point3, point4];
+        fillColour = '#000';
+    }
 
     // Check if proposed offers any clashes with existing line segments in allLines.
     var results = checkForCollisionWithExistingLines(proposedBridgeSection);
     results.forEach(res => {
         var circle = group.circle(5).fill('#fff').move(res.x - 2.5, res.y - 2.5);
         group.referencedCircles.push(circle);
-    })
-    const newLine = group.polyline(polyCoordinates).fill('none').stroke({ color: '#000', width: 2 });
-    addToAllLines(group, idx, polyCoordinates);  // allLines is used when checking for collisions.
-
-    const landedSide = determineLandedSide(landingSide, dischargeAttachSide);
-    var newArrow = drawArrow(group, landedSide, lineEndX, lineEndY)
-    
-    newArrow.fill('#000');
+    });
+    // finally, add the line and arrow to the SVG
+    var newLine = group.polyline(polyCoordinates).fill('none').stroke({ color: fillColour, width: 2 });
+    const landedSide = determineLandedSide(landingSide, dischargeAttachSide);  // necessary for dangling streams to point arrow correctly
+    if (group.data.id == "u0001" && idx == 0) { console.log(`LineStartX: ${lineStartX}, lineEndX ${lineEndX}`); }
+    var newArrow = drawArrowHeads(group, landedSide, lineEndX, lineEndY, fillColour);
 
     // If you need to reference these later, you can assign them to properties on the group
     group.referencedLines.push(newLine);
     group.referencedArrows.push(newArrow);
+    addToAllLines(group, idx, polyCoordinates);  // allLines is used when checking for collisions.
 }
 
-function drawArrow(group, landedSide, lineEndX, lineEndY) {
+function drawArrowHeads(group, landedSide, lineEndX, lineEndY, fillColour = "#000") {
     let newArrow;
     switch (landedSide) {
         case "right":
@@ -505,7 +758,7 @@ function drawArrow(group, landedSide, lineEndX, lineEndY) {
             newArrow = group.polygon(`0,0 0,${arrowHeight} ${arrowWidth},0 0,-${arrowHeight}`);
             newArrow.move(lineEndX - arrowWidth, lineEndY - arrowHeight);
     }
-    newArrow.fill('#000');
+    newArrow.fill(fillColour);
     return newArrow;
 }
 
@@ -522,18 +775,28 @@ function determineLandedSide(landingSide, dischargeAttachSide) {
     }
 }
 
-  // Function to save the updated positions to a file
-  function savePositionsToFile(updatedData) {
-      // Convert the JSON object to a string
-      var jsonString = JSON.stringify(updatedData);
-     
-      // Code to save jsonString to a file
-      // This will depend on your environment, e.g., Node.js, browser, etc.
-      // For example, in Node.js, you might use fs.writeFileSync('path/to/file.json', jsonString);
-  }
+// Function to save the updated positions to a file
+function savePositionsToFile(updatedData) {
+    // Convert the JSON object to a string
+    var jsonString = JSON.stringify(updatedData);
+    
+    // Code to save jsonString to a file
+    // This will depend on your environment, e.g., Node.js, browser, etc.
+    // For example, in Node.js, you might use fs.writeFileSync('path/to/file.json', jsonString);
+}
 
-  // Create unit_operations from the JSON data
-  plantData.unit_operations.forEach(data => {
-      var grp = createDraggableGroup(data, '#000');
-      allGroups.push(grp);
-  });
+// Create unit_operations from the JSON data
+plantData.unit_operations.forEach(data => {
+    var grp = createDraggableGroup(data);
+    allGroups.push(grp);
+});
+
+// Now connect them all together by drawing connector lines with arrowheads.
+plantData.unit_operations.forEach(data => {
+    var unitId = data.id;
+    var group = allGroups.find(group => group.attr('data-id') === unitId);
+    data.output_streams.forEach(function(stream, idx) {
+        drawLineAndArrow(group, idx);
+    });
+});
+
